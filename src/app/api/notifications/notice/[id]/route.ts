@@ -4,15 +4,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
 
     const { error } = await supabase
       .from('notices')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
