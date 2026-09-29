@@ -1,0 +1,68 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Windows
+DumpStack.log.tmp
+System Volume Information/
+pagefile.sys
+hiberfil.sys
+swapfile.sys
+~$*
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+desktop.ini
+.kilo/backups/ 
+*.exe 
+scripts/inspect-*.mjs 
+backups/ 
+*.log 
+tmp_patch_log.txt 
+.kilo/ 
+echo 
+supabase/.temp/ 

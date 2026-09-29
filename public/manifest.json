@@ -1,0 +1,25 @@
+{
+  "name": "KinderERP - Teacher App",
+  "short_name": "KinderERP",
+  "description": "Kindergarten Management System for Teachers",
+  "start_url": "/attendance/students",
+  "display": "standalone",
+  "theme_color": "#4f46e5",
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

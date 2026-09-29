@@ -1,0 +1,25 @@
+
+> kindergarten-erp@0.1.0 build
+> cross-env NODE_OPTIONS='--max-old-space-size=1536' next build --webpack
+
+▲ Next.js 16.3.0-canary.10 (webpack)
+- Environments: .env.local
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 54s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/api/exams/marks/entry/route.ts:71:51
+Type error: Property 'class_name' does not exist on type '{ id: any; name: any; roll_no: any; admission_no: any; father_name: any; section_id: any; }'.
+
+  [90m69 |[0m       data: {
+  [90m70 |[0m         exam_subject: examSubject,
+[31m[1m>[0m [90m71 |[0m         [36mclass[0m: { id: class_id, name: students[[35m0[0m]?.class_name },
+  [90m   |[0m                                                   [31m[1m^[0m
+  [90m72 |[0m         students: studentsWithMarks
+  [90m73 |[0m       }
+  [90m74 |[0m     });
+Next.js build worker exited with code: 1 and signal: null

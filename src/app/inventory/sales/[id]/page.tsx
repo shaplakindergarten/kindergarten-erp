@@ -1,0 +1,704 @@
+"use client"
+
+import React, { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import {
+  ArrowLeft,
+  Loader2,
+  Printer,
+  User,
+  Package,
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  LucideIcon
+} from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { formatCurrency, formatDate } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
+import { ResponsiveLayout } from "@/components/layout/responsive-layout"
+
+const supabase = createClient()
+
+// --- Types ---
+type SaleStatus = 'completed' | 'cancelled' | 'returned'
+
+interface SalesItem {
+  id: string
+  sale_id: string
+  item_id: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  item?: {
+    id: string
+    item_code: string
+    name: string
+    unit: string
+  }
+}
+
+interface Student {
+  id: string
+  name: string
+  student_id: string
+}
+
+interface InventorySale {
+  id: string
+  sale_no: string
+  student_id: string
+  sale_date: string
+  subtotal: number
+  discount: number
+  net_amount: number
+  paid_amount: number
+  due_amount: number
+  status: SaleStatus
+  narration?: string | null
+  student?: Student
+  items: SalesItem[]
+  created_at?: string
+}
+
+interface SchoolSettings {
+  school_name: string
+  school_address: string
+  school_phone: string
+  school_email: string
+  school_logo: string | null
+}
+
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+// --- Status Config ---
+const STATUS_CONFIG: Record<SaleStatus, { style: string; label: string; icon: LucideIcon }> = {
+  completed: { 
+    style: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800', 
+    label: 'Completed', 
+    icon: CheckCircle2 
+  },
+  cancelled: { 
+    style: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-950/50 dark:text-gray-300 dark:border-gray-800', 
+    label: 'Cancelled', 
+    icon: XCircle 
+  },
+  returned: { 
+    style: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800', 
+    label: 'Returned', 
+    icon: XCircle 
+  }
+}
+
+// --- Print HTML Generator ---
+const generatePrintHTML = (school: SchoolSettings, d: any) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sale Receipt - ${d.no}</title>
+  <meta charset="UTF-8">
+  <style>
+    @page { 
+      size: A4; 
+      margin: 0.5in; 
+    }
+    
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: white;
+    }
+    
+    body { 
+      font-family: Arial, sans-serif; 
+      color: #1a1a2e; 
+      font-size: 12px; 
+      line-height: 1.5; 
+      background: white; 
+    }
+    
+    .container { 
+      width: 100%; 
+      padding: 0;
+    }
+    
+    .header { 
+      text-align: center; 
+      border-bottom: 2px solid #1a1a2e; 
+      padding-bottom: 12px; 
+      margin-bottom: 16px; 
+    }
+    
+    .school-name { 
+      font-size: 20px; 
+      font-weight: 700; 
+    }
+    
+    .school-address { 
+      font-size: 11px; 
+      color: #4b5563; 
+      margin: 2px 0; 
+    }
+    
+    .school-contact { 
+      font-size: 10px; 
+      color: #6b7280; 
+    }
+    
+    .voucher-title { 
+      font-size: 17px; 
+      font-weight: 700; 
+      margin-top: 8px; 
+      padding: 4px 20px; 
+      border-top: 1px solid #d1d5db; 
+      border-bottom: 1px solid #d1d5db; 
+      display: inline-block; 
+      letter-spacing: 2px; 
+    }
+    
+    .info-row { 
+      display: flex; 
+      justify-content: space-between; 
+      padding: 8px 12px; 
+      background: #f8fafc; 
+      border-left: 3px solid #1a1a2e; 
+      margin-bottom: 14px; 
+      font-size: 12px; 
+    }
+    
+    .details-row { 
+      display: flex; 
+      gap: 14px; 
+      margin-bottom: 14px; 
+    }
+    
+    .details-box { 
+      flex: 1; 
+      padding: 8px 12px; 
+      border: 1px solid #d1d5db; 
+    }
+    
+    .details-box .label { 
+      font-size: 9px; 
+      font-weight: 600; 
+      color: #6b7280; 
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+    }
+    
+    .details-box .value { 
+      font-size: 14px; 
+      font-weight: 600; 
+      margin-top: 2px; 
+    }
+    
+    .details-box .sub { 
+      font-size: 11px; 
+      color: #6b7280; 
+    }
+    
+    .table-wrap { 
+      margin-bottom: 14px; 
+    }
+    
+    .table-wrap table { 
+      width: 100%; 
+      border-collapse: collapse; 
+    }
+    
+    .table-wrap th { 
+      background: #1a1a2e; 
+      color: white; 
+      padding: 6px 10px; 
+      font-size: 10px; 
+      font-weight: 600; 
+      text-transform: uppercase; 
+      white-space: nowrap;
+    }
+    
+    .table-wrap th:not(:first-child), 
+    .table-wrap td:not(:first-child) { 
+      text-align: right; 
+    }
+    
+    .table-wrap td { 
+      padding: 6px 10px; 
+      font-size: 12px; 
+      border-bottom: 1px solid #e5e7eb; 
+      white-space: nowrap;
+    }
+    
+    .total-box { 
+      background: #f1f5f9; 
+      border: 2px solid #1a1a2e; 
+      padding: 10px 16px; 
+      display: flex; 
+      justify-content: space-between; 
+      margin-bottom: 14px; 
+    }
+    
+    .total-box .label, 
+    .total-box .amount { 
+      font-size: 16px; 
+      font-weight: 700; 
+    }
+    
+    .purpose-box { 
+      background: #fefce8; 
+      border-left: 3px solid #eab308; 
+      padding: 8px 12px; 
+      margin-bottom: 14px; 
+      font-size: 12px; 
+    }
+    
+    .purpose-box strong { 
+      color: #854d0e; 
+    }
+    
+    .footer { 
+      display: flex; 
+      justify-content: space-between; 
+      margin-top: 40px; 
+      padding-top: 14px; 
+      border-top: 1px solid #d1d5db;
+    }
+    
+    .signature { 
+      text-align: center; 
+      min-width: 140px; 
+    }
+    
+    .signature .line { 
+      border-bottom: 1px solid #1a1a2e; 
+      width: 140px; 
+      margin: 0 auto 4px; 
+      height: 30px; 
+    }
+    
+    .signature .label { 
+      font-size: 11px; 
+      font-weight: 600; 
+    }
+    
+    .signature .sub { 
+      font-size: 9px; 
+      color: #6b7280; 
+    }
+    
+    @media print {
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: white;
+      }
+      
+      .container {
+        padding: 0;
+      }
+      
+      .info-row { 
+        background: #f8fafc !important; 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+      }
+      
+      .table-wrap th { 
+        background: #1a1a2e !important; 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+      }
+      
+      .total-box { 
+        background: #f1f5f9 !important; 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+      }
+      
+      .purpose-box { 
+        background: #fefce8 !important; 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="school-name">${school.school_name}</div>
+      <div class="school-address">${school.school_address}</div>
+      <div class="school-contact">
+        ${school.school_phone ? `Phone: ${school.school_phone}` : ''} ${school.school_email ? `| Email: ${school.school_email}` : ''}
+      </div>
+      <div class="voucher-title">SALE RECEIPT</div>
+    </div>
+    
+    <div class="info-row">
+      <span><strong>Sale No:</strong> ${d.no}</span>
+      <span><strong>Date:</strong> ${d.date}</span>
+      <span><strong>Status:</strong> ${d.statusText}</span>
+    </div>
+    
+    <div class="details-row">
+      <div class="details-box">
+        <div class="label">Student</div>
+        <div class="value">${d.studentName}</div>
+        <div class="sub">ID: ${d.studentId}</div>
+      </div>
+      <div class="details-box">
+        <div class="label">Total Amount</div>
+        <div class="value">BDT ${d.total}</div>
+        <div class="sub">${d.itemsCount} item(s)</div>
+      </div>
+    </div>
+    
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:6%;text-align:center;">#</th>
+            <th style="width:34%;text-align:left;">Item</th>
+            <th style="width:15%;text-align:right;">Qty</th>
+            <th style="width:20%;text-align:right;">Unit Price</th>
+            <th style="width:25%;text-align:right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.items.map((item: any, index: number) => `
+            <tr>
+              <td style="text-align:center;">${index + 1}</td>
+              <td style="text-align:left;">${item.name}</td>
+              <td style="text-align:right;">${item.qty}</td>
+              <td style="text-align:right;">BDT ${item.price}</td>
+              <td style="text-align:right;font-weight:600;">BDT ${item.total}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="total-box">
+      <span class="label">Grand Total</span>
+      <span class="amount">BDT ${d.total}</span>
+    </div>
+    
+    ${d.purpose ? `<div class="purpose-box"><strong>Note:</strong> ${d.purpose}</div>` : ''}
+    
+    <div class="footer">
+      <div class="signature">
+        <div class="line"></div>
+        <div class="label">Prepared By</div>
+        <div class="sub">(Signature)</div>
+      </div>
+      <div class="signature">
+        <div class="line"></div>
+        <div class="label">Received By</div>
+        <div class="sub">(${d.studentName})</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() { 
+        window.print(); 
+      }, 300);
+      window.onafterprint = function() { 
+        window.close(); 
+      };
+    };
+  </script>
+</body>
+</html>
+`
+
+export default function SaleDetailPage({ params }: PageProps) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [sale, setSale] = useState<InventorySale | null>(null)
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings | null>(null)
+
+  const resolvedParams = React.use(params)
+  const saleId = resolvedParams.id
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [settingsRes, saleRes] = await Promise.all([
+          supabase
+            .from('school_settings')
+            .select('school_name, school_address, school_phone, school_email, school_logo')
+            .limit(1)
+            .single(),
+          supabase
+            .from('inventory_sales')
+            .select(`
+              *,
+              student:students(name, student_id),
+              items:inventory_sale_items(*, item:inventory_items(item_code, name, unit))
+            `)
+            .eq('id', saleId)
+            .single()
+        ])
+
+        if (!settingsRes.error && settingsRes.data) {
+          setSchoolSettings(settingsRes.data as SchoolSettings)
+        }
+
+        if (saleRes.error) throw saleRes.error
+        setSale(saleRes.data as InventorySale)
+      } catch (error) {
+        console.error('Error loading sale:', error)
+        toast.error('Failed to load sale details')
+        router.push('/inventory/sales')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [saleId, router])
+
+  const renderStatusBadge = (status: SaleStatus) => {
+    const current = STATUS_CONFIG[status] || STATUS_CONFIG.completed
+    const Icon = current.icon
+
+    return (
+      <Badge variant="outline" className={`px-2.5 py-1 text-xs font-semibold gap-1.5 rounded-full ${current.style}`}>
+        <Icon className="h-3.5 w-3.5" />
+        {current.label}
+      </Badge>
+    )
+  }
+
+  const handlePrint = () => {
+    if (!sale || !schoolSettings) {
+      toast.error('Unable to print. Please try again.')
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
+    if (!printWindow) {
+      toast.error('Please allow popups for printing')
+      return
+    }
+
+    const printData = {
+      no: sale.sale_no,
+      studentName: sale.student?.name || 'N/A',
+      studentId: sale.student?.student_id || 'N/A',
+      date: formatDate(sale.sale_date),
+      total: (sale.net_amount || sale.subtotal || 0).toFixed(2),
+      status: sale.status,
+      statusText: STATUS_CONFIG[sale.status]?.label || sale.status,
+      purpose: sale.narration || '',
+      itemsCount: sale.items?.length || 0,
+      items: (sale.items || []).map((item: any) => ({
+        name: `${item.item?.item_code || ''} ${item.item?.name || 'Unknown Item'}`.trim(),
+        qty: item.quantity,
+        price: (item.unit_price || 0).toFixed(2),
+        total: (item.total_price || 0).toFixed(2)
+      }))
+    }
+
+    printWindow.document.write(generatePrintHTML(schoolSettings, printData))
+    printWindow.document.close()
+  }
+
+  if (loading) {
+    return (
+      <ResponsiveLayout>
+        <div className="flex flex-col items-center justify-center min-h-[500px] gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground animate-pulse">Loading sale details...</p>
+        </div>
+      </ResponsiveLayout>
+    )
+  }
+
+  if (!sale) {
+    return (
+      <ResponsiveLayout>
+        <div className="flex flex-col items-center justify-center min-h-[500px] text-center p-6">
+          <div className="p-4 bg-muted rounded-full mb-4">
+            <Package className="h-12 w-12 text-muted-foreground" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight">Sale Not Found</h2>
+          <p className="text-muted-foreground max-w-md mt-1 mb-6">
+            The sale record you are looking for does not exist or has been deleted.
+          </p>
+          <Button onClick={() => router.push('/inventory/sales')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Sales List
+          </Button>
+        </div>
+      </ResponsiveLayout>
+    )
+  }
+
+  return (
+    <ResponsiveLayout>
+      <div className="max-w-5xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
+        
+        {/* Screen Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Link href="/inventory/sales">
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="sr-only">Back</span>
+                </Button>
+              </Link>
+              <h1 className="text-2xl font-bold tracking-tight">Sale Receipt</h1>
+            </div>
+            <p className="text-xs text-muted-foreground pl-10">
+              Manage and view sale details
+            </p>
+          </div>
+
+          <Button onClick={handlePrint} className="gap-2 shadow-sm">
+            <Printer className="h-4 w-4" />
+            Print Voucher
+          </Button>
+        </div>
+
+        {/* Main Content */}
+        <div className="bg-card text-card-foreground rounded-xl border shadow-sm overflow-hidden">
+          
+          {/* Voucher Header */}
+          <div className="p-6 border-b bg-muted/20">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Receipt No</span>
+                  {renderStatusBadge(sale.status)}
+                </div>
+                <h2 className="text-3xl font-extrabold font-mono tracking-tight mt-1 text-primary">
+                  {sale.sale_no}
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground block text-xs">Date:</span>
+                  <span className="font-semibold">{formatDate(sale.sale_date)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-xs">Total:</span>
+                  <span className="font-semibold">{formatCurrency(sale.net_amount || sale.subtotal || 0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Details Grid */}
+          <div className="p-6 space-y-6">
+            
+            {/* Student & Amount Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="rounded-lg border p-4 bg-background space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" /> Student Details
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">{sale.student?.name || 'N/A'}</h3>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    ID: {sale.student?.student_id || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 bg-background space-y-3">
+                <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Note / Remarks
+                </span>
+                <p className="text-sm font-medium text-foreground">
+                  {sale.narration || "No additional notes for this transaction."}
+                </p>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Items Sold</h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Item Code</TableHead>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Unit Price</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(sale.items || []).map((item: any) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-mono text-xs">
+                          {item.item?.item_code || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-sm">{item.item?.name || 'Unknown Item'}</div>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-sm">
+                          {item.quantity}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {formatCurrency(item.unit_price || 0)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs font-semibold">
+                          {formatCurrency(item.total_price || 0)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Grand Total */}
+            <div className="flex justify-end">
+              <div className="bg-primary/5 rounded-lg p-4 border border-primary/20 min-w-[200px]">
+                <div className="text-sm text-muted-foreground">Grand Total</div>
+                <div className="text-2xl font-bold text-primary">
+                  {formatCurrency(sale.net_amount || sale.subtotal || 0)}
+                </div>
+              </div>
+            </div>
+
+            {/* System Notice */}
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-semibold text-amber-900 dark:text-amber-200">System Notice</p>
+                <p className="text-amber-800/80 dark:text-amber-300/80">
+                  This transaction is recorded in the sales log. Stock adjustments are automatically computed.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </ResponsiveLayout>
+  )
+}

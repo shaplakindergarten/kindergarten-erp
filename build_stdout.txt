@@ -1,0 +1,12 @@
+
+> kindergarten-erp@0.1.0 build
+> cross-env NODE_OPTIONS='--max-old-space-size=1536' next build --webpack
+
+▲ Next.js 16.3.0-canary.10 (webpack)
+- Environments: .env.local
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 74s
+  Running TypeScript ...

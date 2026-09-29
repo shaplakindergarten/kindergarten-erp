@@ -1,0 +1,1004 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../styles/ui.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =========================
+   🎨 DESIGN TOKENS
+========================= */
+
+:root {
+  --background: 214 66% 98%;
+  --foreground: 216 15% 16%;
+  --card: 214 60% 98%;
+  --card-foreground: 216 15% 16%;
+  --primary: 236 82% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 280 60% 94%;
+  --secondary-foreground: 216 15% 16%;
+  --muted: 214 46% 92%;
+  --muted-foreground: 215 16% 47%;
+  --border: 214 30% 88%;
+  --ring: 236 82% 62%;
+  --glass: 255,255,255,0.72;
+  --glass-dark: 15,17,25,0.78;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --grad-1: 262 83% 58%;
+  --grad-2: 316 70% 60%;
+  --grad-3: 199 89% 48%;
+}
+
+.dark {
+  --background: 224 25% 10%;
+  --foreground: 210 30% 96%;
+  --card: 224 28% 14%;
+  --card-foreground: 210 30% 96%;
+  --primary: 244 75% 65%;
+  --secondary: 220 18% 18%;
+  --secondary-foreground: 210 30% 96%;
+  --muted: 224 22% 14%;
+  --muted-foreground: 215 20% 70%;
+  --border: 228 12% 25%;
+  --ring: 244 75% 65%;
+}
+
+/* =========================
+   BASE STYLES
+========================= */
+
+* {
+  box-sizing: border-box;
+  border-color: hsl(var(--border));
+}
+
+html, body, #__next {
+  min-height: 100%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
+.glass-panel {
+  background-color: rgba(var(--glass));
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.dark .glass-panel {
+  background-color: rgba(var(--glass-dark));
+  border-color: rgba(255,255,255,0.08);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* =========================
+   SCROLLBAR
+========================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* =========================
+   INPUT FIXES
+========================= */
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield;
+}
+
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* =========================
+   LIGHT MODE TEXT COLORS
+========================= */
+
+.text-gray-900, .text-gray-800, .text-gray-700 {
+  color: #111827 !important;
+}
+
+/* =========================
+   DARK MODE - COMPLETE FIXES
+========================= */
+
+.dark {
+  color-scheme: dark;
+}
+
+/* Text Colors */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .font-semibold,
+.dark .font-bold,
+.dark .card-title,
+.dark .text-sm,
+.dark .text-xs,
+.dark .uppercase {
+  color: #f3f4f6 !important;
+}
+
+.dark .text-gray-500,
+.dark .text-gray-600 {
+  color: #9ca3af !important;
+}
+
+.dark .text-red-600 {
+  color: #f87171 !important;
+}
+
+.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+
+.dark .text-emerald-500 {
+  color: #10b981 !important;
+}
+
+.dark .text-amber-800 {
+  color: #fde68a !important;
+}
+
+/* Background Colors - Solid */
+.dark .bg-secondary,
+.dark [class*="bg-secondary"] {
+  background-color: #374151 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark .bg-gray-100,
+.dark .bg-gray-50 {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: #451a03 !important;
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+/* Cards - Solid */
+.dark .bg-white\/80,
+.dark .bg-gray-900\/80,
+.dark .rounded-2xl,
+.dark .rounded-xl {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+/* Borders */
+.dark .divide-y > div {
+  border-color: #374151 !important;
+}
+
+.dark .border-b,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #374151 !important;
+}
+
+/* =========================
+   DARK MODE - INPUT FIELDS - Solid
+========================= */
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #818cf8 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
+}
+
+/* Select Dropdown Options */
+.dark select option {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark select:invalid,
+.dark select option[value=""] {
+  color: #9ca3af !important;
+}
+
+/* =========================
+   DARK MODE - TABLE
+========================= */
+
+.dark table,
+.dark td,
+.dark th {
+  color: #f3f4f6 !important;
+}
+
+/* Dark mode table row hover - specific override */
+.dark .hover\:bg-muted\/50:hover {
+  background-color: #1f2937 !important;
+}
+
+/* Specific table header dark mode background - not overriding all gray backgrounds */
+.dark .th-dark-bg,
+.dark tr[style*="bg-purple-50"],
+.dark tr[style*="bg-slate-800"] th {
+  background-color: #1f2937 !important;
+}
+
+/* =========================
+   DARK MODE - BADGE
+========================= */
+
+.dark .badge,
+.dark [class*="badge"] {
+  color: #f3f4f6 !important;
+}
+
+.dark .badge-secondary,
+.dark .bg-secondary {
+  background-color: #374151 !important;
+}
+
+/* =========================
+   DARK MODE - HOVER EFFECTS
+========================= */
+
+.dark .hover\:bg-emerald-50:hover {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+/* =========================
+   DARK MODE - RADIX UI COMPONENTS
+========================= */
+
+.dark [role="listbox"],
+.dark [data-radix-select-content],
+.dark .SelectContent {
+  background-color: #1f2937 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark [role="option"],
+.dark .SelectItem {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark [role="option"]:hover,
+.dark .SelectItem:hover {
+  background-color: #374151 !important;
+  cursor: pointer;
+}
+
+/* =========================
+   DARK MODE - DIALOG
+========================= */
+
+.dark .DialogContent,
+.dark [data-radix-portal] {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+/* =========================
+   🏆 প্রিমিয়াম RECEIPT STYLES
+========================= */
+
+/* রিসিট কন্টেইনার - প্রিমিয়াম লুক */
+#receipt-content {
+  background: white !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.1) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* প্রিন্টের জন্য রিসিট স্টাইল ওভাররাইড */
+@media print {
+  #receipt-content {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* হেডার এলাকা */
+.receipt-header-premium {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: white;
+}
+
+/* স্টুডেন্ট ডিটেইলস কার্ড */
+.student-details-premium {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* ফুটার এলাকা */
+.receipt-footer-premium {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* প্রিমিয়াম টেবিল স্টাইল */
+.receipt-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.receipt-table th {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  color: white;
+  font-weight: 600;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.receipt-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.receipt-table tr:last-child td {
+  border-bottom: none;
+}
+
+.receipt-table tr:hover {
+  background-color: #f8fafc;
+}
+
+/* ডার্ক মোডে প্রিমিয়াম স্টাইল */
+.dark .receipt-table th {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+}
+
+.dark .receipt-table td {
+  border-bottom-color: #374151;
+}
+
+.dark .receipt-table tr:hover {
+  background-color: #1f2937;
+}
+
+.dark .student-details-premium {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border-color: #374151;
+}
+
+.dark .receipt-footer-premium {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+}
+
+/* ব্যাজ স্টাইল */
+.receipt-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.receipt-badge-paid {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.receipt-badge-partial {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+/* ওয়াটারমার্ক স্টাইল */
+.receipt-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.receipt-watermark img {
+  max-width: 200px;
+  opacity: 0.3;
+}
+
+/* কপি লেবেল স্টাইল */
+.receipt-copy-label {
+  display: inline-block;
+  padding: 4px 16px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.receipt-copy-label-office {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+}
+
+.receipt-copy-label-student {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+/* =========================
+   📄 ADVANCED PRINT STYLES - PERFECT A4
+========================= */
+
+@media print {
+  /* রিসেট স্টাইল */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* পৃষ্ঠা সেটআপ */
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+  
+  /* প্রিন্টে শুধু রিসিট দেখাবে, বাকি সব লুকাবে */
+  .no-print,
+  button,
+  .dialog-header,
+  [role="dialog"] > div:first-child,
+  header:not(.receipt-header),
+  footer:not(.receipt-footer) {
+    display: none !important;
+  }
+  
+  /* রিসিট কন্টেইনার */
+  #receipt-content,
+  .receipt-paper {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* সব কালার ও ইমেজ প্রিন্টে রাখা */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* ইমেজ সাইজ কন্ট্রোল */
+  img {
+    max-height: 70px !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+  
+  .receipt-header-logo img {
+    max-height: 55px !important;
+  }
+  
+  .student-photo,
+  .avatar img {
+    max-height: 60px !important;
+    width: 60px !important;
+    border-radius: 8px !important;
+  }
+  
+  /* টেবিল স্টাইল - প্রিন্টে */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: avoid !important;
+  }
+  
+  th, td {
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 8px 4px !important;
+    text-align: left !important;
+  }
+  
+  th {
+    background: #0d9488 !important;
+    color: white !important;
+    font-weight: 600 !important;
+  }
+  
+  .text-right {
+    text-align: right !important;
+  }
+  
+  .text-center {
+    text-align: center !important;
+  }
+  
+  /* ব্যাজ প্রিন্ট স্টাইল */
+  .receipt-badge {
+    display: inline-block !important;
+    padding: 2px 10px !important;
+    border-radius: 9999px !important;
+    font-size: 9px !important;
+    font-weight: 600 !important;
+  }
+  
+  .receipt-badge-paid {
+    background: #10b981 !important;
+    color: white !important;
+  }
+  
+  .receipt-badge-partial {
+    background: #f59e0b !important;
+    color: white !important;
+  }
+  
+  /* কার্ড ও গ্রেডিয়েন্ট প্রিন্টে */
+  .bg-gradient-to-r,
+  .shadow-xl,
+  .shadow-lg,
+  .shadow-md {
+    background: white !important;
+    box-shadow: none !important;
+  }
+  
+  /* পেজ ব্রেক কন্ট্রোল */
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+  }
+  
+  .page-break-before-avoid {
+    page-break-before: avoid;
+  }
+  
+  /* মার্জিন ফিক্স */
+  .mt-1 { margin-top: 2px; }
+  .mt-2 { margin-top: 4px; }
+  .mt-3 { margin-top: 6px; }
+  .mt-4 { margin-top: 8px; }
+  .mb-1 { margin-bottom: 2px; }
+  .mb-2 { margin-bottom: 4px; }
+  .mb-3 { margin-bottom: 6px; }
+  .mb-4 { margin-bottom: 8px; }
+  .p-2 { padding: 4px; }
+  .p-3 { padding: 6px; }
+  .p-4 { padding: 8px; }
+  .p-6 { padding: 12px; }
+  
+  /* ওয়াটারমার্ক প্রিন্টে রাখা */
+  .receipt-watermark {
+    opacity: 0.05 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* টেক্সট কালার প্রিন্টে */
+  .text-gray-900, .text-gray-800, .text-gray-700 {
+    color: #111827 !important;
+  }
+  
+  .text-gray-500, .text-gray-600 {
+    color: #6b7280 !important;
+  }
+  
+  .text-emerald-600 {
+    color: #059669 !important;
+  }
+  
+  .text-red-600 {
+    color: #dc2626 !important;
+  }
+  
+  /* ফন্ট সাইজ ফিক্স */
+  .text-xs { font-size: 9px !important; }
+  .text-sm { font-size: 10px !important; }
+  .text-base { font-size: 11px !important; }
+  .text-lg { font-size: 12px !important; }
+  .text-xl { font-size: 14px !important; }
+  .text-2xl { font-size: 16px !important; }
+}
+
+/* =========================
+   🖨️ PDF GENERATION SPECIFIC STYLES
+========================= */
+
+/* PDF জেনারেশনের জন্য স্পেসিফিক স্টাইল */
+.pdf-export {
+  background: white;
+  padding: 20px;
+}
+
+.pdf-export * {
+  color: black !important;
+}
+
+.pdf-export .bg-gray-50,
+.pdf-export .bg-gray-100 {
+  background-color: #f9fafb !important;
+}
+
+/* PDF প্রিview স্টাইল */
+.pdf-preview {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  margin: 0 auto;
+  padding: 10mm;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* =========================
+   🖼️ WATERMARK STYLES
+========================= */
+
+.watermark-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.watermark-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* =========================
+   🔤 FONT OPTIMIZATION
+========================= */
+
+/* ফন্ট লোডিং অপটিমাইজেশন */
+@media print {
+  body, * {
+    font-family: 'Inter', 'Poppins', 'Segoe UI', Arial, sans-serif !important;
+  }
+}
+
+/* ফন্ট স্মুথনেস */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================
+   📱 RESPONSIVE PRINT
+========================= */
+
+@media print and (max-width: 768px) {
+  #receipt-content {
+    padding: 10px !important;
+  }
+  
+  .grid {
+    display: block !important;
+  }
+  
+  .flex {
+    flex-direction: column !important;
+  }
+}
+
+/* =========================
+   ✨ অ্যানিমেশন
+========================= */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* =========================
+   A4 PDF SPECIFIC FIXES
+========================= */
+
+/* A4 সাইজ ফিক্স */
+.a4-receipt {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  margin: 0 auto;
+  padding: 8mm 10mm;
+  box-sizing: border-box;
+}
+
+/* প্রিন্ট মিডিয়ার জন্য স্পেসিফিক */
+@media print {
+  .a4-receipt {
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+/* টেবিল সেল ফিক্স */
+.receipt-table td, 
+.receipt-table th {
+  word-break: break-word;
+}
+
+/* প্রিন্টে পৃষ্ঠার ব্রেক এড়ানো */
+.print-no-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* প্রিমিয়াম রিসিট ফুটার */
+.receipt-footer-premium p {
+  margin: 0;
+}
+
+/* লোগোর জন্য */
+.receipt-header-logo img {
+  max-height: 60px;
+  width: auto;
+}
+
+/* ============================================
+   🆕 LOADING SKELETONS
+   ============================================ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    #1a1a2e 25%,
+    #2a2a3e 50%,
+    #1a1a2e 75%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ============================================
+   🆕 EMPTY STATES
+   ============================================ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.empty-state-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.dark .empty-state-title {
+  color: #f1f5f9;
+}
+
+.empty-state-description {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+.empty-state-action {
+  margin-top: 1rem;
+}
+
+/* ============================================
+   🆕 EXTRA PRINT STYLES - COMPREHENSIVE
+   ============================================ */
+
+/* প্রিন্টে লুকানোর ক্লাস */
+@media print {
+  .no-print,
+  .print-hidden,
+  button:not(.print-button),
+  [role="dialog"] button,
+  .dialog-close,
+  .modal-close,
+  .sidebar-toggle,
+  .mobile-menu {
+    display: none !important;
+  }
+
+  /* প্রিন্টে দেখানোর ক্লাস */
+  .print-only {
+    display: block !important;
+  }
+
+  /* প্রিন্টে পৃষ্ঠার ব্রেক */
+  .page-break {
+    page-break-before: always !important;
+  }
+
+  .page-break-after {
+    page-break-after: always !important;
+  }
+
+  /* প্রিন্টে মার্জিন */
+  .print-margin {
+    margin: 20px !important;
+  }
+
+  /* প্রিন্টে টেবিলের সীমানা */
+  .print-table {
+    border: 1px solid #000 !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+  }
+
+  .print-table th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+
+  /* প্রিন্টে টেক্সট সাইজ */
+  .print-text-sm {
+    font-size: 10px !important;
+  }
+
+  .print-text-base {
+    font-size: 12px !important;
+  }
+
+  .print-text-lg {
+    font-size: 14px !important;
+  }
+
+  .print-text-xl {
+    font-size: 16px !important;
+  }
+
+  .print-text-2xl {
+    font-size: 18px !important;
+  }
+
+  /* প্রিন্টে কালার */
+  .print-color-emerald {
+    color: #059669 !important;
+  }
+
+  .print-color-rose {
+    color: #dc2626 !important;
+  }
+
+  .print-color-blue {
+    color: #2563eb !important;
+  }
+}

@@ -1,0 +1,165 @@
+<!-- E:\kindergarten-erp\public\icon-generator.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+    <style>
+        body {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f0f0;
+            font-family: Arial;
+            flex-wrap: wrap;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .icon {
+            width: 192px;
+            height: 192px;
+            background: #4f46e5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 30px;
+            margin: 0 auto;
+            overflow: hidden;
+            padding: 20px;
+        }
+        .icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .icon-512 {
+            width: 512px;
+            height: 512px;
+            border-radius: 80px;
+            padding: 40px;
+        }
+        .icon-512 img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #7c3aed;
+            transform: scale(1.05);
+        }
+        .upload-area {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #4f46e5;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background: #f0f0ff;
+        }
+        h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .size-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        #logoPreview {
+            max-width: 80px;
+            max-height: 80px;
+            display: none;
+            margin: 10px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>Step 1: Upload Logo</h3>
+        <div class="upload-area" id="uploadArea">
+            <p>📁 Click to upload your logo</p>
+            <input type="file" id="logoInput" accept="image/*" style="display:none">
+            <img id="logoPreview" alt="Logo preview">
+        </div>
+        <div id="iconPreview">
+            <div class="icon" id="icon192">
+                <span style="color:white;font-size:60px;font-weight:bold;">📷</span>
+            </div>
+        </div>
+        <div class="size-label">👇 Right-click and Save</div>
+        <br>
+        <button onclick="downloadIcon(192)">📥 Download 192x192</button>
+    </div>
+
+    <div class="container">
+        <h3>Step 2: Large Icon</h3>
+        <div class="icon icon-512" id="icon512">
+            <span style="color:white;font-size:150px;font-weight:bold;">📷</span>
+        </div>
+        <div class="size-label">👇 Right-click and Save</div>
+        <br>
+        <button onclick="downloadIcon(512)">📥 Download 512x512</button>
+    </div>
+
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        // লোগো আপলোড
+        document.getElementById('uploadArea').addEventListener('click', () => {
+            document.getElementById('logoInput').click();
+        });
+
+        document.getElementById('logoInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const logoData = event.target.result;
+                    document.getElementById('logoPreview').src = logoData;
+                    document.getElementById('logoPreview').style.display = 'block';
+                    
+                    // আইকনে লোগো সেট করুন
+                    document.querySelectorAll('.icon').forEach(el => {
+                        el.innerHTML = `<img src="${logoData}" style="width:100%;height:100%;object-fit:contain;">`;
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function downloadIcon(size) {
+            const element = document.getElementById(size === 192 ? 'icon192' : 'icon512');
+            
+            html2canvas(element, {
+                scale: 3,
+                backgroundColor: null,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `icon-${size}x${size}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                alert('Please right-click on the icon and select "Save image as..."');
+            });
+        }
+    </script>
+</body>
+</html>

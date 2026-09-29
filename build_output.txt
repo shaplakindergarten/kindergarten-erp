@@ -1,0 +1,25 @@
+
+> kindergarten-erp@0.1.0 build
+> cross-env NODE_OPTIONS='--max-old-space-size=1536' next build --webpack
+
+▲ Next.js 16.3.0-canary.10 (webpack)
+- Environments: .env.local
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 64s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/api/exams/marks/summary/route.ts:52:38
+Type error: Parameter 'm' implicitly has an 'any' type.
+
+  [90m50 |[0m
+  [90m51 |[0m     [90m// Count by status[0m
+[31m[1m>[0m [90m52 |[0m     [36mconst[0m draftCount = marks?.filter(m => m.entry_status === [32m'draft'[0m).length || [35m0[0m;
+  [90m   |[0m                                      [31m[1m^[0m
+  [90m53 |[0m     [36mconst[0m submittedCount = marks?.filter(m => m.entry_status === [32m'submitted'[0m).length || [35m0[0m;
+  [90m54 |[0m     [36mconst[0m verifiedCount = marks?.filter(m => m.entry_status === [32m'verified'[0m).length || [35m0[0m;
+  [90m55 |[0m     [36mconst[0m lockedCount = marks?.filter(m => m.entry_status === [32m'locked'[0m).length || [35m0[0m;
+Next.js build worker exited with code: 1 and signal: null

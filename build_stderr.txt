@@ -1,0 +1,12 @@
+Failed to type check.
+
+./src/app/api/exams/terms/route.ts:58:55
+Type error: 'error' is of type 'unknown'.
+
+  [90m56 |[0m     [36mreturn[0m [33mNextResponse[0m.json({ success: [36mtrue[0m, data });
+  [90m57 |[0m   } [36mcatch[0m (error) {
+[31m[1m>[0m [90m58 |[0m     [36mreturn[0m [33mNextResponse[0m.json({ success: [36mfalse[0m, error: error.message }, { status: [35m500[0m });
+  [90m   |[0m                                                       [31m[1m^[0m
+  [90m59 |[0m   }
+  [90m60 |[0m }
+Next.js build worker exited with code: 1 and signal: null
