@@ -1,7 +1,7 @@
-// src/app/inventory/assets/[id]/page.tsx
+// src/app/inventory/reports/assets/[id]/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { 
@@ -67,7 +67,8 @@ interface IssuanceHistory {
   purpose: string
 }
 
-export default function AssetDetailPage({ params }: { params: { id: string } }) {
+export default function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [asset, setAsset] = useState<AssetDetail | null>(null)
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistory[]>([])
@@ -76,7 +77,7 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     loadAssetDetail()
-  }, [params.id])
+  }, [id])
 
   const loadAssetDetail = async () => {
     setLoading(true)
@@ -88,7 +89,7 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
           *,
           category:inventory_categories(name)
         `)
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (assetError) throw assetError
@@ -105,7 +106,7 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
           *,
           purchase:purchase_id(purchase_no, purchase_date, supplier:supplier_id(company_name))
         `)
-        .eq('item_id', params.id)
+        .eq('item_id', id)
         .order('created_at', { ascending: false })
         .limit(10)
 
@@ -122,7 +123,7 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
           *,
           issuance:issuance_id(issue_no, issuance_date, issued_to_name, issued_to_type, purpose)
         `)
-        .eq('item_id', params.id)
+        .eq('item_id', id)
         .order('created_at', { ascending: false })
         .limit(10)
 
@@ -192,7 +193,7 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
               Print
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/inventory/items/${params.id}/edit`}>
+              <Link href={`/inventory/items/${id}/edit`}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Link>
