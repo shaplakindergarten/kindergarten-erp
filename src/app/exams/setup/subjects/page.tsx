@@ -255,7 +255,8 @@ export default function SubjectAssignmentPage() {
       if (error) throw error;
       
       if (data) {
-        const sorted = [...data].sort((a, b) => {
+        const typedData = data as unknown as ExamSubject[];
+        const sorted = [...typedData].sort((a, b) => {
           const nameA = a.subject?.name || '';
           const nameB = b.subject?.name || '';
           const indexA = getSubjectOrderIndex(nameA);

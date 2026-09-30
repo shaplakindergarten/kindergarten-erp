@@ -33,7 +33,7 @@ interface Result {
   published_at: string;
   failed_subjects: any[];
   has_failed_compulsory: boolean;
-  exam_terms: { name: string; term_code: string } | null;
+  exam_terms: { id: string; name: string; term_code: string }[] | null;
 }
 
 const containerVariants: Variants = {
@@ -148,7 +148,7 @@ export function MyResultsClient({
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                      {result.exam_terms?.name || "Exam"}
+                      {result.exam_terms?.[0]?.name || "Exam"}
                     </h3>
                     <p className="text-xs text-slate-500">
                       {result.published_at && new Date(result.published_at).toLocaleDateString("bn-BD", {

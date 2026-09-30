@@ -112,7 +112,7 @@ export function PendingAdmissionsTab({
 
       if (error) throw error;
 
-      setAdmissions((data as PendingAdmission[]) || []);
+      setAdmissions((data as unknown as PendingAdmission[]) || []);
     } catch (err) {
       if (isNetworkError(err)) {
         console.warn("Pending admissions unavailable: network is offline.");

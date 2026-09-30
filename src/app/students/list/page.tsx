@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -94,8 +95,8 @@ const filterSchema = z.object({
   class_id: z.string().optional(),
   section_id: z.string().optional(),
   status: z.string().optional(),
-  sort_by: z.string().default("created_at"),
-  sort_order: z.enum(["asc", "desc"]).default("desc"),
+  sort_by: z.string().optional(),
+  sort_order: z.enum(["asc", "desc"]).optional(),
 });
 
 type FilterFormData = z.infer<typeof filterSchema>;
@@ -121,7 +122,7 @@ const STATUS_OPTIONS = [
   { id: "graduated", name: "Graduated" },
 ];
 
-export default function StudentsListPage() {
+function StudentsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const addToast = useToastStore((s) => s.addToast);
@@ -154,12 +155,12 @@ export default function StudentsListPage() {
   const { register, handleSubmit, watch, setValue } = useForm<FilterFormData>({
     resolver: zodResolver(filterSchema),
     defaultValues: {
-      search: searchParams.get("search") || "",
-      class_id: searchParams.get("class_id") || "all",
-      section_id: searchParams.get("section_id") || "all",
-      status: searchParams.get("status") || "all",
-      sort_by: searchParams.get("sort_by") || "created_at",
-      sort_order: (searchParams.get("sort_order") as "asc" | "desc") || "desc",
+      search: searchParams.get("search") ?? undefined,
+      class_id: searchParams.get("class_id") ?? undefined,
+      section_id: searchParams.get("section_id") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+      sort_by: searchParams.get("sort_by") ?? undefined,
+      sort_order: (searchParams.get("sort_order") as "asc" | "desc") ?? undefined,
     },
   });
 
@@ -933,4 +934,12 @@ export default function StudentsListPage() {
       </AlertDialog>
     </ResponsiveLayout>
   );
+}
+
+export default function StudentsListPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StudentsListContent />
+    </Suspense>
+  )
 }

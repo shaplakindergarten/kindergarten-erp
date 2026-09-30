@@ -175,11 +175,11 @@ export default function FeeCategoriesPage() {
         custom_schedule: formData.frequency === "custom" ? formData.custom_schedule : null,
       })
     } else {
-      result = await createCategory({
+       result = await createCategory({
         name: formData.name.trim(),
         amount: amountNum,
         frequency: formData.frequency,
-        description: formData.description.trim() || null,
+        description: formData.description.trim() || undefined,
         custom_schedule: formData.frequency === "custom" ? formData.custom_schedule : null,
       })
     }

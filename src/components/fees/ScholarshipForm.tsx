@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2, Award, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { applyScholarship, getScholarshipsByStudent } from '@/lib/api/fees';
 import { ScholarshipApplication } from '@/types/fees';
 import { format } from 'date-fns';
@@ -74,6 +76,7 @@ export function ScholarshipForm({ studentId, onSuccess, trigger }: ScholarshipFo
 
   const loadData = async () => {
     try {
+      const supabase = createClient();
       // Load academic years
       const { data: years } = await supabase
         .from('academic_years')
@@ -178,7 +181,7 @@ export function ScholarshipForm({ studentId, onSuccess, trigger }: ScholarshipFo
                       variant={
                         sch.status === 'approved' ? 'success' :
                         sch.status === 'pending' ? 'warning' :
-                        'destructive'
+                        'error'
                       }
                     >
                       {sch.status}

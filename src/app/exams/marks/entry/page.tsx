@@ -169,9 +169,9 @@ const SubjectCell = memo(function SubjectCell({
     onFocus(studentId, subject.id);
   }, [value, onFocus, studentId, subject.id]);
 
-  const handleInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInput = useCallback((e: React.FormEvent<HTMLInputElement>) => {
     if (isComposingRef.current) return;
-    currentValueRef.current = e.target.value;
+    currentValueRef.current = (e.target as HTMLInputElement).value;
   }, []);
 
   const handleCompositionStart = useCallback(() => {

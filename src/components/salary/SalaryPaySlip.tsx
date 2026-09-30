@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SalaryPaySlip({ staffId, month, year }: { staffId: string; month: number; year: number }) {
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   const [payslip, setPayslip] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 

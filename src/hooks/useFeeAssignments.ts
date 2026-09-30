@@ -20,7 +20,6 @@ import {
   FeeAssignmentFilters,
   FeeAssignmentWithDetails,
   FeeAssignmentStats,
-  UnassignedStudent,
   CreateFeeAssignmentData,
   UpdateFeeAssignmentData,
   BulkAssignData,

@@ -365,7 +365,7 @@ export default function OutstandingReportPage() {
 
     printContainer.innerHTML = `
       <div class="print-wrapper">
-        ${getSchoolPrintHeader(schoolInfo, "Outstanding / Defaulter Report")}
+        ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo.school_logo ?? undefined, school_email: schoolInfo.school_email ?? undefined }, "Outstanding / Defaulter Report")}
         <div style="display:flex; justify-content:space-between; margin:15px 0; background:#f1f5f9; padding:12px; border-radius:6px;">
           <div><strong>Total Due:</strong> ${formatCurrency(totalDue)}</div>
           <div><strong>Students:</strong> ${filteredRecords.length}</div>

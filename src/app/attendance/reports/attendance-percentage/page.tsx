@@ -826,7 +826,7 @@ export default function AttendancePercentageReportPage() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ range, percent }) => `${range}: ${(percent * 100).toFixed(0)}%`}
+                      label={({ range, percent }: any) => `${range}: ${(percent * 100).toFixed(0)}%`}
                       outerRadius={100}
                       dataKey="count"
                     >

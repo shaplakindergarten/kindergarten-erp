@@ -470,7 +470,7 @@ export default function AdmitCardPage() {
 
       let academicYearName = selectedStudent.academic_year_name || "";
       if (!academicYearName) {
-        const yearData = academicYears.find(y => y.id === selectedStudent.academic_year_id);
+        const yearData = academicYears.find(y => y.id === (selectedStudent as any).academic_year_id);
         academicYearName = yearData?.name || yearData?.year_name || "N/A";
       }
 
@@ -531,7 +531,7 @@ export default function AdmitCardPage() {
       for (const student of bulkStudents) {
         let academicYearName = student.academic_year_name || "";
         if (!academicYearName) {
-          const yearData = academicYears.find(y => y.id === student.academic_year_id);
+          const yearData = academicYears.find(y => y.id === (student as any).academic_year_id);
           academicYearName = yearData?.name || yearData?.year_name || "N/A";
         }
 

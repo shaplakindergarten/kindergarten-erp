@@ -307,7 +307,6 @@ export default function BulkUploadPage() {
           type: 'success',
           title: 'Upload Complete',
           message: `${data.imported} students imported successfully!`,
-          duration: 5000,
         });
       }
 
@@ -316,7 +315,6 @@ export default function BulkUploadPage() {
           type: 'warning',
           title: 'Partial Success',
           message: `${data.failed} records failed to import. Download error report.`,
-          duration: 5000,
         });
       }
 

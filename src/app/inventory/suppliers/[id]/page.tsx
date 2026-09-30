@@ -120,7 +120,7 @@ export default function SupplierDetailPage({ params }: PageProps) {
       case 'pending':
         return <Badge variant="warning" className="text-xs">Pending</Badge>
       case 'cancelled':
-        return <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+        return <Badge variant="error" className="text-xs">Cancelled</Badge>
       default:
         return <Badge variant="outline" className="text-xs">{status}</Badge>
     }

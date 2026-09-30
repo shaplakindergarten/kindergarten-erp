@@ -117,7 +117,7 @@ export async function getAttendanceReport(filters: { startDate: string; endDate:
         total: 0 
       }
     }
-    studentStats[studentId][record.status]++
+    studentStats[studentId][record.status as keyof typeof studentStats[typeof studentId]]++
     studentStats[studentId].total++
   })
 

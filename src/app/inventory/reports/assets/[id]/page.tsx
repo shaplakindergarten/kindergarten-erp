@@ -278,7 +278,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Status</span>
                 <Badge variant={
-                  isOutOfStock ? "destructive" :
+                  isOutOfStock ? "error" :
                   isLowStock ? "outline" :
                   asset.is_active ? "default" : "secondary"
                 }>

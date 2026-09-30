@@ -4,7 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 interface CurrencyInputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "onBlur" | "onFocus"> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "onBlur"> {
   value: number | string
   onValueChange: (value: number) => void
   format?: (value: number) => string

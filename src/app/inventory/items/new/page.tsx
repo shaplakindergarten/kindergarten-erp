@@ -83,7 +83,7 @@ export default function NewItemPage() {
       toast.success('Item created successfully')
       router.push('/inventory/items')
     } catch (error) {
-      console.error('Error creating item:', error?.message || error)
+      console.error('Error creating item:', (error as any)?.message || error)
       toast.error('Failed to create item')
     } finally {
       setSubmitting(false)

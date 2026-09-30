@@ -1,32 +1,32 @@
 // src/app/finance/reports/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { 
-  ArrowLeft,
-  Download,
-  Loader2,
-  Calendar,
-  BarChart3,
-  FileBarChart,
-  Printer,
-  TrendingUp,
-  PieChart,
-  DollarSign,
-  Wallet
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatCurrency, cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
-import { format } from "date-fns"
-import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { useSearchParams } from "next/navigation"
-import { toast } from "sonner"
+   ArrowLeft,
+   Download,
+   Loader2,
+   Calendar,
+   BarChart3,
+   FileBarChart,
+   Printer,
+   TrendingUp,
+   PieChart,
+   DollarSign,
+   Wallet
+ } from "lucide-react"
+ import { Button } from "@/components/ui/button"
+ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+ import { Badge } from "@/components/ui/badge"
+ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+ import { formatCurrency, cn } from "@/lib/utils"
+ import { createClient } from "@/lib/supabase/client"
+ import { format } from "date-fns"
+ import { ResponsiveLayout } from "@/components/layout/responsive-layout"
+ import { useSearchParams } from "next/navigation"
+ import { toast } from "sonner"
 
 const supabase = createClient()
 
@@ -38,13 +38,6 @@ interface SchoolSettings {
 }
 
 type ReportType = 'cashbook' | 'general-ledger' | 'trial-balance' | 'income-statement' | 'balance-sheet' | 'source-wise'
-
-interface ReportConfig {
-  title: string
-  icon: React.ElementType
-  description: string
-  color: string
-}
 
 type ReportConfig = {
   title: string
@@ -108,7 +101,7 @@ const periodOptions = [
   { value: 'custom', label: 'Custom Range' },
 ]
 
-export default function ReportsPage() {
+function ReportsContent() {
   const searchParams = useSearchParams()
   const initialTypeParam = searchParams.get('type')
   const initialType = (initialTypeParam && initialTypeParam in reportConfig) ? (initialTypeParam as ReportType) : 'cashbook'
@@ -229,7 +222,7 @@ export default function ReportsPage() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const dates = getPeriodDates(selectedPeriod)
+      const dates = getPeriodDates()
       
       if (activeReport === 'cashbook') {
         await loadCashbook(dates)
@@ -1002,7 +995,7 @@ export default function ReportsPage() {
                               <TableCell>
                                 <Badge variant={
                                   row.balance_type === 'debit' ? 'default' :
-                                  row.balance_type === 'credit' ? 'destructive' : 'secondary'
+                                  row.balance_type === 'credit' ? 'error' : 'secondary'
                                 }>
                                   {row.balance_type}
                                 </Badge>
@@ -1024,5 +1017,13 @@ export default function ReportsPage() {
         </Card>
       </div>
     </ResponsiveLayout>
+  )
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ReportsContent />
+    </Suspense>
   )
 }

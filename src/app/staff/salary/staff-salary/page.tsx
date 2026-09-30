@@ -184,7 +184,7 @@ export default function StaffSalaryPage() {
           other_deductions: parseFloat(formData.other_deductions) || 0,
         },
         formData.effective_from,
-        userId,
+        userId ?? undefined,
         editingSalary ? 'Salary updated' : 'Initial setup'
       );
 
@@ -213,7 +213,7 @@ export default function StaffSalaryPage() {
       const result = await salaryService.bulkSetupSalaries(
         selectedCategoryForBulk === "all" ? undefined : selectedCategoryForBulk,
         undefined,
-        userId
+        userId ?? undefined
       );
       
       setBulkProgress(result);
@@ -833,7 +833,7 @@ export default function StaffSalaryPage() {
                                         other_deductions: category.deductions || 0,
                                       },
                                       new Date().toISOString().split("T")[0],
-                                      userId,
+                                      userId ?? undefined,
                                       'Quick setup'
                                     );
                                     addToast({ type: "success", title: "Success", message: "Salary setup completed" });

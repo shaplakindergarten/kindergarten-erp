@@ -27,6 +27,7 @@ export interface DueStudent {
   overdue_status: 'Critical' | 'High' | 'Medium' | 'Low' | 'Current';
   student_status: string;
   created_at: string;
+  advance_balance?: number;
 }
 
 export interface DueFilters {
@@ -54,6 +55,8 @@ export interface DueStatsType {
   due_students_count: number; // Total number of students with due
   total_due: number;          // Alias for totalDue
   collection_rate: number;    // Alias for collectionRate
+  advanceBalance?: number;    // Total advance balance (৳)
+  advanceCount?: number;      // Number of students with advance
 }
 
 // ✅ Updated DueLevel for school fee structure

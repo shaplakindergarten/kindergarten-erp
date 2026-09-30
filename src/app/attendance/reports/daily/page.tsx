@@ -120,10 +120,10 @@ export default function DailyAttendancePage() {
 
   // ✅ fetch school - students/page.tsx এর মতো একই পদ্ধতি
   useEffect(() => {
-    supabase.from("school_settings")
+      Promise.resolve(supabase.from("school_settings")
       .select("school_name, school_address, school_phone")
       .limit(1).single()
-      .then(({ data }) => { if (data) setSchoolInfo(data) })
+      .then(({ data }) => { if (data) setSchoolInfo(data) }))
       .catch(() => {
         setSchoolInfo({
           school_name: "School Name",

@@ -116,7 +116,7 @@ export default function InventoryPage() {
 
   const getStatusBadge = (item: InventoryItem) => {
     if (item.current_stock === 0) {
-      return <Badge variant="destructive" className="text-xs">Out of Stock</Badge>
+      return <Badge variant="error" className="text-xs">Out of Stock</Badge>
     }
     if (item.current_stock <= item.reorder_level) {
       return <Badge variant="warning" className="text-xs">Low Stock</Badge>

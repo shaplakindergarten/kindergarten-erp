@@ -57,8 +57,8 @@ export async function GET(request: Request) {
 
     if (studentsError) throw studentsError;
 
-    const students = studentsData as StudentWithClass[] | null;
-    const studentList: StudentWithClass[] = students ?? [];
+    const students = (studentsData ?? []) as unknown as StudentWithClass[];
+    const studentList: StudentWithClass[] = students;
 
     // Get existing marks
     const { data, error: marksError } = await supabase

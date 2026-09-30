@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     // Get all marks for this subject
     const { data, error } = await supabase
-      .from<MarkEntryStatus>('student_marks_new')
+      .from('student_marks_new')
       .select('entry_status')
       .eq('term_id', term_id)
       .eq('exam_subject_id', examSubject.id);

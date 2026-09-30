@@ -34,9 +34,11 @@ export async function POST(request: NextRequest) {
     
     // HTML সেট করুন - বড় HTML এর জন্য timeout বাড়ানো হয়েছে
     await page.setContent(html, {
-      waitUntil: ["load", "networkidle0"],
+      waitUntil: "load",
       timeout: 30000,
     });
+    
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 });
     
     // PDF জেনারেট করুন
     const pdfBuffer = await page.pdf({
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
     console.log("PDF generated successfully, size:", pdfBuffer.length);
     
     // PDF রেসপন্স হিসেবে পাঠান
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

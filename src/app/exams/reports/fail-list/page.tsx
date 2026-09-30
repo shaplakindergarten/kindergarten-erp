@@ -519,7 +519,7 @@ const failedList: FailedStudent[] = filteredResults.map((item: any) => {
         </head>
         <body>
           <div class="print-container">
-            ${getSchoolPrintHeader(schoolInfo, `Failed Students List — ${selectedTermName}`)}
+            ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo?.school_logo ?? undefined, school_email: schoolInfo?.school_email ?? undefined }, `Failed Students List — ${selectedTermName}`)}
             
             <!-- Table -->
             <table>
@@ -871,7 +871,7 @@ return (
                           {student.failed_subjects.map((subj, idx) => (
                             <Badge 
                               key={idx}
-                              variant="destructive"
+                              variant="error"
                               className="text-[10px] px-1.5 py-0.5"
                             >
                               {subj.subject_name}

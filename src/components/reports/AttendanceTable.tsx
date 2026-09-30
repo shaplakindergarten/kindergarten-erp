@@ -91,7 +91,7 @@ export function AttendanceTable({
                 </td>
 
                 <td className="px-4 py-3 text-center">
-                  <Badge variant="destructive">
+                  <Badge variant="error">
                     {record.absent}
                   </Badge>
                 </td>

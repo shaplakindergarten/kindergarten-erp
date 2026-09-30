@@ -176,11 +176,11 @@ export default function StaffAttendancePage() {
 
 // Fetch school info
    useEffect(() => {
-     supabase.from("school_settings")
-       .select("school_name, school_address, school_phone, school_email, school_logo")
-       .limit(1).single()
-       .then(({ data }) => { if (data) setSchoolInfo(data) })
-       .catch(() => {
+       Promise.resolve(supabase.from("school_settings")
+        .select("school_name, school_address, school_phone, school_email, school_logo")
+        .limit(1).single()
+        .then(({ data }) => { if (data) setSchoolInfo(data) }))
+        .catch(() => {
          setSchoolInfo({
            school_name: "School Name",
            school_address: "",
@@ -600,7 +600,7 @@ export default function StaffAttendancePage() {
   // PDF Generation
   const generatePDF = async () => {
     setPdfGen(true)
-    addToast({ type: 'loading', title: 'Loading', message: "Generating PDF, please wait..." })
+    addToast({ type: 'info', title: 'Loading', message: "Generating PDF, please wait..." })
     
     try {
       const html = generateStaffReportHTML(

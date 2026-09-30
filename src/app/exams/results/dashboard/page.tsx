@@ -578,7 +578,7 @@ const top = [...filteredResults]
         </head>
         <body>
           <div class="print-container">
-            ${getSchoolPrintHeader(schoolInfo, `Result Dashboard Report — ${termName}`)}
+            ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo?.school_logo ?? undefined, school_email: schoolInfo?.school_email ?? undefined }, `Result Dashboard Report — ${termName}`)}
 
             <!-- Statistics -->
             <div class="stats-grid">
@@ -1055,7 +1055,7 @@ const top = [...filteredResults]
                           </td>
                           <td className="text-center">
                             {result.pass_fail_status === 'Failed' ? (
-                              <Badge variant="destructive" className="bg-red-500">Failed</Badge>
+                              <Badge variant="error" className="bg-red-500">Failed</Badge>
                             ) : (
                               <Badge className="bg-green-500 text-white">Passed</Badge>
                             )}

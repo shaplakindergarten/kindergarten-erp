@@ -108,7 +108,7 @@ export default function SupplierEditPage({ params }: PageProps) {
       toast.success('Supplier updated successfully')
       router.push(`/inventory/suppliers/${supplierId}`)
     } catch (error) {
-      console.error('Error updating supplier:', error?.message || error)
+      console.error('Error updating supplier:', (error as any)?.message || error)
       toast.error('Failed to update supplier')
     } finally {
       setSubmitting(false)

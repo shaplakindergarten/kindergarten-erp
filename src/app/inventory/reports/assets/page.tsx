@@ -361,7 +361,7 @@ export default function AssetRegisterPage() {
                           <TableCell className="text-right font-medium">{formatCurrency(totalValue)}</TableCell>
                           <TableCell>
                             <Badge variant={
-                              isOutOfStock ? "destructive" :
+                              isOutOfStock ? "error" :
                               isLowStock ? "outline" :
                               asset.is_active ? "default" : "secondary"
                             }>

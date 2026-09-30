@@ -464,7 +464,7 @@ export default function DailyReportPage() {
         </style>
       </head>
       <body>
-        ${getSchoolPrintHeader(schoolSettings, "Daily Collection Report")}
+        ${getSchoolPrintHeader({ ...schoolSettings, school_logo: schoolSettings.school_logo ?? undefined, school_email: schoolSettings.school_email ?? undefined }, "Daily Collection Report")}
         <p class="report-date" style="text-align: center; margin: 5px 0; font-size: 11px; color: #64748b;">${formatDateLong(selectedDate)} | Printed: ${printDate}</p>
         <div class="summary">
           <div class="summary-item"><div class="label">Total Transactions</div><div class="value">${summary.total_transactions}</div></div>
@@ -536,7 +536,7 @@ export default function DailyReportPage() {
       pdfContent.style.top = "0"
       
       pdfContent.innerHTML = `
-        ${getSchoolPrintHeader(schoolSettings, "Daily Collection Report")}
+        ${getSchoolPrintHeader({ ...schoolSettings, school_logo: schoolSettings.school_logo ?? undefined, school_email: schoolSettings.school_email ?? undefined }, "Daily Collection Report")}
         <p style="text-align:center; font-size:11px; color:#64748b; margin:5px 0;">${formatDateLong(selectedDate)} | Printed: ${printDate}</p>
         <div style="display:flex; justify-content:space-between; margin-bottom:20px; background:#f1f5f9; padding:12px; border-radius:6px; flex-wrap:wrap;">
           <div style="text-align:center; flex:1; min-width:80px;"><div style="font-size:9px;">Total Transactions</div><div style="font-size:13px; font-weight:bold;">${summary.total_transactions}</div></div>

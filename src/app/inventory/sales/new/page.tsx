@@ -128,7 +128,7 @@ export default function NewSalePage() {
       if (sectionsRes.error) throw sectionsRes.error
 
       setItems(itemsRes.data || [])
-      setStudentsList(studentsRes.data || [])
+      setStudentsList((studentsRes.data ?? []) as unknown as Student[])
       setClasses(classesRes.data || [])
       setSections(sectionsRes.data || [])
     } catch (error) {

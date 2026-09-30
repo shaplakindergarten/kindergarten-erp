@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -105,7 +106,7 @@ function isCashBankAccount(acc: FinancialAccount): boolean {
   )
 }
 
-export default function NewVoucherPage() {
+function NewVoucherContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -1001,5 +1002,13 @@ export default function NewVoucherPage() {
         </DialogContent>
       </Dialog>
     </ResponsiveLayout>
+  )
+}
+
+export default function NewVoucherPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewVoucherContent />
+    </Suspense>
   )
 }

@@ -146,10 +146,10 @@ export default function SectionWiseAttendancePage() {
 
 // Fetch school info
    useEffect(() => {
-    supabase.from("school_settings")
+      Promise.resolve(supabase.from("school_settings")
       .select("school_name, school_address, school_phone, school_email, school_logo")
       .limit(1).single()
-      .then(({ data }) => { if (data) setSchoolInfo(data) })
+      .then(({ data }) => { if (data) setSchoolInfo(data) }))
       .catch(() => {
         setSchoolInfo({
           school_name: "School Name",
@@ -280,7 +280,7 @@ export default function SectionWiseAttendancePage() {
         let late = 0
         const studentsDetail: StudentAttendanceDetail[] = []
         
-        studentsData.forEach((s: StudentRecord) => {
+        studentsData.forEach((s: any) => {
           const status = attendanceMap[s.id] || "absent"
           if (status === "present") present++
           else if (status === "absent") absent++
@@ -291,6 +291,7 @@ export default function SectionWiseAttendancePage() {
             name: s.name,
             admission_no: s.student_id || "N/A",
             class_roll: s.class_roll || "—",
+            student_id: s.student_id,
             status
           })
         })

@@ -132,10 +132,10 @@ export default function MonthlyAttendancePage() {
   const [pdfGen, setPdfGen] = useState(false)
 
   useEffect(() => {
-    supabase.from("school_settings")
+      Promise.resolve(supabase.from("school_settings")
       .select("school_name, school_address, school_phone, school_logo, school_email")
       .limit(1).single()
-      .then(({ data }) => { if (data) setSchoolInfo(data) })
+      .then(({ data }) => { if (data) setSchoolInfo(data) }))
       .catch(() => setSchoolInfo({ school_name: "School Name", school_address: "", school_phone: "", school_logo: null, school_email: null }))
   }, [])
 
@@ -374,7 +374,7 @@ export default function MonthlyAttendancePage() {
         .medium { color: #d97706; font-weight: bold; }
         .low { color: #dc2626; font-weight: bold; }
 </style></head><body>
-       ${getSchoolPrintHeader(schoolInfo, `Monthly Attendance Report — ${fmtMonthYear(selectedDate)}`)}
+       ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo.school_logo ?? undefined, school_email: schoolInfo.school_email ?? undefined }, `Monthly Attendance Report — ${fmtMonthYear(selectedDate)}`)}
        <div class="stats">
         <div class="stat-card"><strong>Students</strong><br>${stats.totalStudents}</div>
         <div class="stat-card"><strong>Working Days</strong><br>${stats.totalWorkingDays}</div>

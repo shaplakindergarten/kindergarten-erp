@@ -543,7 +543,7 @@ finalMeritList.push({
         </head>
         <body>
           <div class="print-container">
-            ${getSchoolPrintHeader(schoolInfo, `Merit List — ${selectedTermName}`)}
+            ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo?.school_logo ?? undefined, school_email: schoolInfo?.school_email ?? undefined }, `Merit List — ${selectedTermName}`)}
             
             <!-- Table -->
             <table>

@@ -92,6 +92,8 @@ interface TabulationResult {
    mother_name: string;
    student_id: string;
    student_photo_url: string | null;
+   admission_no?: string | null;
+   photo_url?: string | null;
    subjects: SubjectMark[];
    total_marks_obtained: number;
    total_full_marks: number;
@@ -704,7 +706,7 @@ transcripts.push({
     const classRankText = data.class_rank ? `${data.class_rank}${getRankSuffix(data.class_rank)}` : 'N/A';
 
     const schoolHeader = schoolInfo ? getSchoolPrintHeader(
-      { school_logo: schoolInfo.school_logo, school_name: schoolInfo.school_name, school_address: schoolInfo.school_address, school_phone: schoolInfo.school_phone, school_email: schoolInfo.school_email },
+      { school_logo: schoolInfo.school_logo ?? undefined, school_name: schoolInfo.school_name, school_address: schoolInfo.school_address, school_phone: schoolInfo.school_phone, school_email: schoolInfo.school_email ?? undefined },
       'ACADEMIC TRANSCRIPT',
       true,
       data.student_photo_url

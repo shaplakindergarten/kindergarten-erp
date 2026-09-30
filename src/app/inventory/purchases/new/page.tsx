@@ -228,7 +228,7 @@ export default function NewPurchasePage() {
         console.error('ERROR DETAILS:', error?.details)
         console.error('ERROR HINT:', error?.hint)
         console.error('ERROR CODE:', error?.code)
-        console.error('ERROR STATUS:', error?.status)
+        console.error('ERROR STATUS:', (error as any)?.status)
         console.error('ERROR NAME:', error?.name)
         console.error('========================================')
         console.error('RPC RETURN DATA:', data)

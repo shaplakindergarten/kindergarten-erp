@@ -324,7 +324,7 @@ export default function YearClosingReportPage() {
 
     printContainer.innerHTML = `
       <div class="print-wrapper">
-        ${getSchoolPrintHeader(schoolInfo, "Year Closing Report")}
+        ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo.school_logo ?? undefined, school_email: schoolInfo.school_email ?? undefined }, "Year Closing Report")}
         <div style="display:flex; justify-content:space-between; flex-wrap:wrap; margin:20px 0; background:#f1f5f9; padding:12px; border-radius:6px;">
           <div style="text-align:center; flex:1; min-width:80px;">
             <div style="font-size:10px; color:#64748b;">Total Collection</div>

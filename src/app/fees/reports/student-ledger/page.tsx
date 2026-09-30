@@ -908,7 +908,7 @@ export default function StudentWiseLedgerPage() {
         </head>
         <body>
           <div class="print-container">
-            ${getSchoolPrintHeader(schoolInfo, "Student Fee Ledger")}
+            ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo.school_logo ?? undefined, school_email: schoolInfo.school_email ?? undefined }, "Student Fee Ledger")}
             <div class="date-range" style="text-align:center; font-size:10px; color:#666; margin:5px 0;">
               From: ${formatDateToDisplay(fromDate) || "All"} | To: ${formatDateToDisplay(toDate) || "All"}
             </div>

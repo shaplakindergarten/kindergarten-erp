@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Download, Printer, Calendar, DollarSign, 
   Users, TrendingUp, TrendingDown, Search, FileText,
-  Eye, Award, CreditCard, Home, Briefcase, Gift,
-  PrintIcon
+   Eye, Award, CreditCard, Home, Briefcase, Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

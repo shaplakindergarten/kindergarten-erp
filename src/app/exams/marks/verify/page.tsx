@@ -376,9 +376,10 @@ export default function MarksVerifyPage() {
     }
     
     if (data && data.length > 0 && isMountedRef.current) {
-      setSubjects(data);
+      const typedData = data as unknown as ExamSubject[];
+      setSubjects(typedData);
       const map = new Map<string, ExamSubject>();
-      data.forEach(s => map.set(s.id, s));
+      typedData.forEach(s => map.set(s.id, s));
       subjectsMapRef.current = map;
     }
   }, [state.selectedTerm, state.selectedClass]);
@@ -448,7 +449,7 @@ export default function MarksVerifyPage() {
       
       if (checkAbort(controller)) return;
       
-      const { data: examSubjects, error: subjectsError } = await supabase
+      const { data: examSubjectsData, error: subjectsError } = await supabase
         .from('exam_subjects')
         .select(`
           id,
@@ -462,6 +463,8 @@ export default function MarksVerifyPage() {
       
       if (subjectsError) throw subjectsError;
       if (checkAbort(controller)) return;
+      
+      const examSubjects = (examSubjectsData ?? []) as unknown as ExamSubject[];
       
       if (!examSubjects || examSubjects.length === 0) {
         dispatch({ type: 'RESET_SUMMARY' });
@@ -488,7 +491,7 @@ export default function MarksVerifyPage() {
       if (checkAbort(controller)) return;
       
       const marksMap = new Map<string, any[]>();
-      allMarksData.forEach((m: any) => {
+      (allMarksData || []).forEach((m: any) => {
         if (!marksMap.has(m.exam_subject_id)) {
           marksMap.set(m.exam_subject_id, []);
         }
@@ -502,7 +505,7 @@ export default function MarksVerifyPage() {
         
         return {
           exam_subject_id: examSubject.id,
-          subject_name: examSubject.subject?.name || 'Unknown',
+          subject_name: (examSubject.subject as any)?.[0]?.name || 'Unknown',
           full_marks: examSubject.full_marks,
           submitted_count: submittedCount,
           verified_count: verifiedCount,
@@ -592,7 +595,7 @@ const { data: studentsData, error: studentsError } = await supabase
       if (checkAbort(controller)) return;
       
       const mergedMarks: StudentMark[] = studentsData.map(student => {
-        const mark = marksData.find(m => m.student_id === student.id);
+        const mark = (marksData || []).find(m => m.student_id === student.id);
         return {
           id: mark?.id || `temp-${student.id}`,
           student_id: student.id,

@@ -677,7 +677,7 @@ export default function ProgressCardPage() {
 
     return `
       <div class="print-container" style="${pageBreak ? 'page-break-before: always;' : ''}">
-        ${getSchoolPrintHeader(schoolInfo, "PROGRESS CARD - " + termName)}
+        ${getSchoolPrintHeader({ ...schoolInfo, school_logo: schoolInfo?.school_logo ?? undefined, school_email: schoolInfo?.school_email ?? undefined }, "PROGRESS CARD - " + termName)}
                 
         <div class="top-layout-container">
           <div class="student-photo-box">

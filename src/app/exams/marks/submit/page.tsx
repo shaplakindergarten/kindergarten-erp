@@ -330,7 +330,7 @@ export default function MarksSubmitPage() {
       if (checkAbort(controller)) return;
       
       // Get all exam subjects for this term and class
-      const { data: examSubjects, error: subjectsError } = await supabase
+      const { data: examSubjectsData, error: subjectsError } = await supabase
         .from('exam_subjects')
         .select(`
           id,
@@ -344,6 +344,8 @@ export default function MarksSubmitPage() {
       
       if (subjectsError) throw subjectsError;
       if (checkAbort(controller)) return;
+      
+      const examSubjects = (examSubjectsData ?? []) as unknown as ExamSubject[];
       
       // CHECK: No subjects assigned
       if (!examSubjects || examSubjects.length === 0) {

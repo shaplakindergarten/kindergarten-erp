@@ -15,7 +15,6 @@ import {
   AlertCircle,
   TrendingDown,
   UserX,
-  PieChart,
   BarChart3,
   ChevronLeft,
   ChevronRight,

@@ -31,7 +31,7 @@ class SmsProvider implements ChannelProvider {
   }
 
   async send(msg: NotificationMessage): Promise<NotificationResult> {
-    await this.saveHistory(msg, 'pending')
+    await saveHistory(msg, 'pending')
     return { success: false, channel: msg.channel, error: 'SMS gateway not configured' }
   }
 }
@@ -46,7 +46,7 @@ class WhatsAppProvider implements ChannelProvider {
     const encodedPhone = msg.guardian_mobile?.replace(/\D/g, '') || ''
     const waLink = `https://wa.me/${encodedPhone}?text=${encodedMsg}`
 
-    await this.saveHistory(msg, 'sent')
+    await saveHistory(msg, 'sent')
 
     return { success: true, channel: msg.channel, message_id: waLink }
   }
@@ -58,7 +58,7 @@ class EmailProvider implements ChannelProvider {
   }
 
   async send(msg: NotificationMessage): Promise<NotificationResult> {
-    await this.saveHistory(msg, 'pending')
+    await saveHistory(msg, 'pending')
     return { success: false, channel: msg.channel, error: 'Email SMTP not configured' }
   }
 }

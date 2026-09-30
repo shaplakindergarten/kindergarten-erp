@@ -62,8 +62,9 @@ export interface FeeInvoice {
   due_amount: number
   status: 'pending' | 'partial' | 'paid'
   due_date: string
-  created_at: string
-  updated_at: string
+   created_at: string
+   updated_at: string
+   version?: number;
 }
 
 export interface FeePayment {
@@ -71,8 +72,9 @@ export interface FeePayment {
    fee_transaction_id: string
    student_id?: string
    amount: number
-   payment_method: 'cash' | 'bank' | 'mobile_banking'
-   note?: string
+    payment_method: 'cash' | 'bank' | 'mobile_banking'
+    receipt_no?: string
+    note?: string
    payment_date: string
  }
 
@@ -437,6 +439,7 @@ export interface DueStudent {
   overdue_status: 'Current' | 'Low' | 'Medium' | 'High' | 'Critical';
   student_status: string;
   created_at: string;
+  advance_balance?: number;
 }
 
 export interface DueFilters {

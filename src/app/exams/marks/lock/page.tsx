@@ -144,7 +144,7 @@ const chunkArray = <T,>(arr: T[], size: number): T[][] => {
 // Optimized batch processor with concurrency control
 const processBatchesWithConcurrency = async <T, R>(
   items: T[],
-  processor: (item: T) => Promise<R>,
+  processor: (item: T, index: number) => Promise<R>,
   concurrency: number = 5
 ): Promise<R[]> => {
   const results: R[] = [];
@@ -517,9 +517,10 @@ export default function MarksLockPage() {
     }
     
     if (data && data.length > 0 && isMountedRef.current) {
-      setSubjects(data);
+      const typedData = data as unknown as ExamSubject[];
+      setSubjects(typedData);
       const map = new Map<string, ExamSubject>();
-      data.forEach(s => map.set(s.id, s));
+      typedData.forEach(s => map.set(s.id, s));
       subjectsMapRef.current = map;
     }
   }, [state.selectedTerm, state.selectedClass]);
@@ -627,7 +628,7 @@ const { data: studentsData, error: studentsError } = await supabase
       if (checkAbort(controller)) return;
       
       const mergedMarks: StudentMark[] = studentsData.map(student => {
-        const mark = marksData.find(m => m.student_id === student.id);
+        const mark = (marksData || []).find(m => m.student_id === student.id);
         return {
           id: mark?.id || `temp-${student.id}`,
           student_id: student.id,
@@ -740,7 +741,7 @@ const { data: studentsData, error: studentsError } = await supabase
       
       if (checkAbort(controller)) return;
       
-      const { data: examSubjects, error: subjectsError } = await supabase
+      const { data: examSubjectsData, error: subjectsError } = await supabase
         .from('exam_subjects')
         .select(`
           id,
@@ -754,6 +755,8 @@ const { data: studentsData, error: studentsError } = await supabase
       
       if (subjectsError) throw subjectsError;
       if (checkAbort(controller)) return;
+      
+      const examSubjects = (examSubjectsData ?? []) as unknown as ExamSubject[];
       
       if (!examSubjects || examSubjects.length === 0) {
         dispatch({ type: 'RESET_SUMMARY' });
@@ -780,7 +783,7 @@ const { data: studentsData, error: studentsError } = await supabase
       if (checkAbort(controller)) return;
       
       const marksMap = new Map<string, any[]>();
-      allMarksData.forEach((m: any) => {
+      (allMarksData || []).forEach((m: any) => {
         if (!marksMap.has(m.exam_subject_id)) {
           marksMap.set(m.exam_subject_id, []);
         }
@@ -906,7 +909,7 @@ const { data: studentsData, error: studentsError } = await supabase
         3 // Process 3 subjects concurrently
       );
       
-      results.forEach(result => {
+      results.forEach((result: LockBatchResult) => {
         if (result.success) {
           successCount++;
         } else {

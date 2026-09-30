@@ -38,7 +38,7 @@ import { createClient } from "@/lib/supabase/client"
 
 export default function HolidaysPage() {
   const supabase = createClient()
-  const [holidays, setHolidays] = useState([])
+  const [holidays, setHolidays] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   

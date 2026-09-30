@@ -117,6 +117,7 @@ export class DueService {
     due_amount: number;
     phone: string;
     father_name: string;
+    email?: string;
     type: string;
   }): Promise<{ success: boolean; message?: string }> {
     try {

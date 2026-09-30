@@ -154,11 +154,11 @@ export default function StaffWiseAttendancePage() {
 
 // Fetch school info
    useEffect(() => {
-     supabase.from("school_settings")
-       .select("school_name, school_address, school_phone, school_email, school_logo")
-       .limit(1).single()
-       .then(({ data }) => { if (data) setSchoolInfo(data) })
-       .catch(() => {
+       Promise.resolve(supabase.from("school_settings")
+        .select("school_name, school_address, school_phone, school_email, school_logo")
+        .limit(1).single()
+        .then(({ data }) => { if (data) setSchoolInfo(data) }))
+        .catch(() => {
          setSchoolInfo({
            school_name: "School Name",
            school_address: "",

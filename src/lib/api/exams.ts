@@ -36,7 +36,7 @@ export async function createExam(exam: Partial<Exam>) {
     .from('exam_terms')
     .insert({
       name: exam.name,
-      term_code: exam.type,
+      term_code: (exam as any).type,
       start_date: exam.start_date,
       end_date: exam.end_date,
       academic_year_id: exam.academic_year_id,
@@ -54,7 +54,7 @@ export async function updateExam(id: string, exam: Partial<Exam>) {
     .from('exam_terms')
     .update({
       name: exam.name,
-      term_code: exam.type,
+      term_code: (exam as any).type,
       start_date: exam.start_date,
       end_date: exam.end_date,
       academic_year_id: exam.academic_year_id,
@@ -153,7 +153,7 @@ export async function getStudentResults(studentId: string) {
 
   if (error) throw error
   
-  const resultsByExam: Record<string, Record<string, unknown>> = {}
+  const resultsByExam: Record<string, { exam: any; subjects: any[]; total: number; maxMarks: number }> = {}
   data?.forEach(r => {
     if (!resultsByExam[r.exam_id]) {
       resultsByExam[r.exam_id] = { exam: r.exam, subjects: [], total: 0, maxMarks: 0 }

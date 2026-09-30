@@ -205,7 +205,7 @@ export default function ItemDetailPage({ params }: PageProps) {
                   <p className="text-sm text-muted-foreground mb-1">Status</p>
                   <Badge className="text-xs" variant={
                     statusInfo.status === 'in_stock' ? 'success' : 
-                    statusInfo.status === 'low_stock' ? 'warning' : 'destructive'
+                    statusInfo.status === 'low_stock' ? 'warning' : 'error'
                   }>
                     {statusInfo.label}
                   </Badge>

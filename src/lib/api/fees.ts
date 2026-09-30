@@ -70,24 +70,31 @@ export async function getDueStudents(): Promise<DueStudent[]> {
 
     const dueStudents: DueStudent[] = (data || []).map((s: any) => ({
       id: s.student_id,
+      student_id: s.student_id,
       name: s.student_name || "Unknown",
       admission_no: s.admission_no || "",
+      roll_no: s.roll_no || "",
+      class_id: s.class_id,
       class_name: s.class_name || "N/A",
+      section_id: s.section_id,
+      section_name: s.section_name || "",
+      father_name: s.father_name || "",
+      mother_name: s.mother_name || "",
+      phone: s.phone || null,
+      email: s.email || "",
       total_fees: s.total_expected || 0,
       total_paid: s.total_paid || 0,
       due_amount: s.total_due || 0,
-      days_overdue: 0,
       last_payment_date: null,
+      days_overdue: 0,
+      overdue_status: 'Current' as const,
+      student_status: 'active',
       parent_email: null,
-      phone: null,
-      // অতিরিক্ত ফিল্ড
-      student_id: s.student_id,
       student_name: s.student_name,
-      class_id: s.class_id,
-      section_id: s.section_id,
       overdue_months: s.overdue_months || 0,
-      overall_status: s.overall_status || 'pending'
-    }))
+      overall_status: s.overall_status || 'pending',
+      created_at: s.created_at || new Date().toISOString(),
+    })) as unknown as DueStudent[];
 
     return dueStudents
 
@@ -284,7 +291,7 @@ export async function getClassWiseDueSummary() {
     const { data, error } = await supabase
       .from('v_due_summary')
       .select('class_name, total_due')
-      .eq('total_due', '>', 0)
+      .gt('total_due', 0)
 
     if (error) throw error
 
@@ -908,7 +915,7 @@ export async function getDueStudentsFiltered(filters: DueFilters): Promise<DueSt
     let query = supabase
       .from('v_due_summary')
       .select('*')
-      .eq('total_due', '>', 0)
+      .gt('total_due', 0)
 
     if (filters.classId) {
       query = query.eq('class_id', filters.classId)
@@ -953,7 +960,7 @@ export async function getDueStudentsFiltered(filters: DueFilters): Promise<DueSt
       days_overdue: 0,
       overdue_months: s.overdue_months || 0,
       overall_status: s.overall_status || 'pending'
-    }))
+    })) as unknown as DueStudent[]
 
   } catch (error) {
     console.error('Error in getDueStudentsFiltered:', error)
@@ -1045,7 +1052,7 @@ export async function getDueSummary(params?: {
     }
 
     const { data, error } = await query
-      .eq('total_due', '>', 0)
+      .gt('total_due', 0)
       .order('total_due', { ascending: false })
 
     if (error) throw error
@@ -1104,7 +1111,7 @@ export async function getClassDueReport() {
     const { data, error } = await supabase
       .from('v_due_summary')
       .select('class_name, total_due, overdue_months, partial_months, pending_months')
-      .eq('total_due', '>', 0)
+      .gt('total_due', 0)
 
     if (error) throw error
 

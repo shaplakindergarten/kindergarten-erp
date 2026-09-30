@@ -27,6 +27,7 @@ interface FeeStructure {
   class_id: string;
   academic_year?: { id: string; year_name: string };
   class?: { id: string; name: string };
+  description?: string | null;
   items?: {
     id: string;
     category_id: string;

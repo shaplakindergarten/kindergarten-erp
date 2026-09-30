@@ -395,7 +395,7 @@ export default function PurchasesPage() {
                           {purchase.total_quantity || 0}
                         </TableCell>
                         <TableCell className="px-3 py-2 text-right font-mono text-gray-900 dark:text-slate-100">
-                          {purchase.total_quantity > 0 ? formatCurrency(purchase.avg_unit_price || 0) : '-'}
+                          {purchase.total_quantity && purchase.total_quantity > 0 ? formatCurrency(purchase.avg_unit_price || 0) : '-'}
                         </TableCell>
                         <TableCell className="px-3 py-2 text-right font-mono font-medium text-gray-900 dark:text-slate-100">
                           {formatCurrency(purchase.total_amount)}

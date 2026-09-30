@@ -25,7 +25,7 @@ export async function createNotification(notification: Partial<Notification> & {
       type: notification.type,
       title: notification.title,
       message: notification.message,
-      recipient_type: notification.recipientType,
+      recipient_type: (notification as any).recipient_type || (notification as any).recipientType,
       sent_at: new Date().toISOString(),
       status: 'pending',
     })

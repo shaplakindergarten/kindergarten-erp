@@ -184,7 +184,7 @@ export default function PurchaseEditPage({ params }: PageProps) {
       setPurchaseNo(purchaseData.purchase_no || '')
       
       const itemsFromPurchase = (purchaseData.purchase_items && purchaseData.purchase_items.length > 0)
-        ? purchaseData.purchase_items.map(pi => ({
+        ? purchaseData.purchase_items.map((pi: any) => ({
             id: pi.id,
             item_id: pi.item_id || '',
             quantity: pi.quantity || 0,

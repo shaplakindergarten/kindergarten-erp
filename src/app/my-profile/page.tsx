@@ -87,9 +87,9 @@ export default async function MyProfilePage() {
     academic: {
       studentId: student.student_id,
       classRoll: student.class_roll,
-      className: student.class?.name || "—",
-      sectionName: student.section?.name || "—",
-      academicYear: student.academic_year?.name || "—",
+      className: (student as any).class?.[0]?.name || "—",
+      sectionName: (student as any).section?.[0]?.name || "—",
+      academicYear: (student as any).academic_year?.[0]?.name || "—",
       admissionDate: student.admission_date,
     },
     institution: {

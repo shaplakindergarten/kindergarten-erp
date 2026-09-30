@@ -174,7 +174,7 @@ export default function ItemEditPage({ params }: PageProps) {
       toast.success('Item updated successfully')
       router.push(`/inventory/items/${itemId}`)
     } catch (error) {
-      console.error('Error updating item:', error?.message || error)
+      console.error('Error updating item:', (error as any)?.message || error)
       toast.error('Failed to update item')
     } finally {
       setSubmitting(false)

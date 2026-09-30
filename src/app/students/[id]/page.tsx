@@ -1281,7 +1281,6 @@ export default function StudentViewEditPage() {
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDiscardChanges}
-                variant="destructive"
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 Discard Changes

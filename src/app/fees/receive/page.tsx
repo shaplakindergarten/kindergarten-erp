@@ -7,7 +7,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react"
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -294,7 +294,7 @@ function normalizeDigits(val: string | number): number {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════
 
-export default function ReceiveFeesPage() {
+function ReceiveFeesContent() {
   const queryClient = useQueryClient()
 
   const [students, setStudents] = useState<Student[]>([])
@@ -1677,5 +1677,13 @@ export default function ReceiveFeesPage() {
         </DialogContent>
       </Dialog>
     </ResponsiveLayout>
+  )
+}
+
+export default function ReceiveFeesPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ReceiveFeesContent />
+    </Suspense>
   )
 }

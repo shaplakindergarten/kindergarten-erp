@@ -263,7 +263,7 @@ export default function ItemsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <Select value={selectedCategory} onValueChange={(v) => setSelectedCategory(v as ItemType | 'all')}>
             <SelectTrigger className="w-full sm:w-40 bg-white text-gray-900 h-10">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
@@ -350,7 +350,7 @@ export default function ItemsPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             {status === 'out_of_stock' ? (
-                              <Badge variant="destructive" className="text-xs">Out of Stock</Badge>
+                              <Badge variant="error" className="text-xs">Out of Stock</Badge>
                             ) : status === 'low_stock' ? (
                               <Badge variant="warning" className="text-xs">Low Stock</Badge>
                             ) : (

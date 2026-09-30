@@ -139,7 +139,7 @@ export default function NewStaffPage() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState(0);
   const [salaryCategories, setSalaryCategories] = useState<any[]>([]);
-  const [designationOptions, setDesignationOptions] = useState<{ name: string; salaryCategoryId: string }[]>([]);
+  const [designationOptions, setDesignationOptions] = useState<{ name: string; salary_category_id: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
