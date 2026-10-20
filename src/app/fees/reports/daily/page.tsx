@@ -37,6 +37,8 @@ import {
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { formatCurrency } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { getAllPaymentsWithAllocation, buildDescriptionFromAllocations } from "@/lib/api/fees-dynamic"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
 import jsPDF from "jspdf"
@@ -146,6 +148,8 @@ export default function DailyReportPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [exportingPDF, setExportingPDF] = useState(false)
   const [printing, setPrinting] = useState(false)
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
   const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(DEFAULT_SCHOOL_SETTINGS)
   const reportRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -180,6 +184,21 @@ export default function DailyReportPage() {
     loadSchoolSettings()
   }, [loadSchoolSettings])
 
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) setSelectedYearId(currentYear.id)
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
+
   const formatDateLong = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', { 
       weekday: 'long', 
@@ -189,15 +208,21 @@ export default function DailyReportPage() {
     })
   }
 
-  // 🆕 Load due data for the selected date
-  const loadDueData = useCallback(async (date: string) => {
-    try {
-      // Get overdue dues for this date
-      const { data: dues, error } = await supabase
-        .from('student_fee_dues')
-        .select('student_id, due_amount, status')
-        .lte('due_date', date)
-        .gt('due_amount', 0)
+   // 🆕 Load due data for the selected date
+   const loadDueData = useCallback(async (date: string) => {
+     try {
+       // Get overdue dues for this date
+       let dueQuery = supabase
+         .from('student_fee_dues')
+         .select('student_id, due_amount, status')
+         .lte('due_date', date)
+         .gt('due_amount', 0)
+
+       if (selectedYearId && selectedYearId.trim() !== "") {
+         dueQuery = dueQuery.eq('academic_year_id', selectedYearId)
+       }
+
+       const { data: dues, error } = await dueQuery
 
       if (error) {
         console.error('Error loading due data:', error)
@@ -212,7 +237,7 @@ export default function DailyReportPage() {
       console.error('Error in loadDueData:', error)
       return { total_due: 0, overdue_count: 0 }
     }
-  }, [])
+  }, [selectedYearId])
 
   // Load data function - using fee_payments table (Dynamic Architecture)
   const loadData = useCallback(async (showToastMessage: boolean = false) => {
@@ -224,7 +249,8 @@ export default function DailyReportPage() {
       // Query fee_payments table via dynamic service
       const payments = await getAllPaymentsWithAllocation({
         dateFrom: selectedDate,
-        dateTo: selectedDate
+        dateTo: selectedDate,
+        academicYearId: selectedYearId || undefined,
       })
 
       console.log("Payments found:", payments?.length || 0)
@@ -332,7 +358,7 @@ export default function DailyReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedDate, loadDueData])
+  }, [selectedDate, loadDueData, selectedYearId])
 
   // Initial load
   useEffect(() => {
@@ -655,6 +681,17 @@ export default function DailyReportPage() {
               onChange={(e) => { setSelectedDate(e.target.value); setLoading(true); loadData(false); }}
               className="h-9 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
             />
+          </div>
+          
+          <div className="space-y-1 w-36">
+            <Label className="text-xs font-medium text-muted-foreground">Academic Year</Label>
+            <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"><SelectValue placeholder="All Years" /></SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <SelectItem value="all">All Years</SelectItem>
+                {activeYears.map((y) => (<SelectItem key={y.id} value={y.id}>{y.year_name}</SelectItem>))}
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-1 flex-1">

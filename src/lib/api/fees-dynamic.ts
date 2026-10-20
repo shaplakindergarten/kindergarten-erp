@@ -677,7 +677,23 @@ export async function getAllPaymentsWithAllocation(filters?: {
       is_advance,
       created_at
     `
-    
+
+    // 🆕 NEW: If academicYearId is provided, first fetch student IDs for that year
+    // This is the KEY fix — payments query must be scoped to the correct year's students
+    let yearStudentIds: string[] | null = null
+    if (filters?.academicYearId && isValidUUID(filters.academicYearId)) {
+      const { data: yearStudents } = await supabase
+        .from('students')
+        .select('id')
+        .eq('academic_year_id', filters.academicYearId)
+      yearStudentIds = (yearStudents || []).map((s: any) => s.id)
+
+      // If no students belong to this year, there can be no payments
+      if (yearStudentIds.length === 0) {
+        return []
+      }
+    }
+
     let query = supabase
       .from('fee_payments')
       .select(selectFields)
@@ -688,7 +704,11 @@ export async function getAllPaymentsWithAllocation(filters?: {
     if (filters?.dateTo) {
       query = query.lte('payment_date', `${filters.dateTo}T23:59:59`)
     }
-    // 🆕 Filter by academic year - applied via students table in Step 3
+
+    // 🆕 NEW: Apply year filter to payments via student_id
+    if (yearStudentIds && yearStudentIds.length > 0) {
+      query = query.in('student_id', yearStudentIds)
+    }
 
     const { data: payments, error: paymentsError } = await query
       .order('payment_date', { ascending: false })
