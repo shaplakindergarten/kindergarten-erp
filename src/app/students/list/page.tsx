@@ -237,13 +237,14 @@ function StudentsListContent() {
 
   // Load stats
   const loadStats = useCallback(async () => {
+    if (!selectedYearId) return;
     try {
-      const data = await getStudentStats();
+      const data = await getStudentStats(selectedYearId);
       setStats(data);
     } catch (error) {
       console.error("Failed to load stats:", error);
     }
-  }, []);
+  }, [selectedYearId]);
 
   // Effects
   useEffect(() => {
@@ -275,7 +276,13 @@ function StudentsListContent() {
     return () => {
       unsubscribeFromStudents();
     };
-  }, []);
+   }, []);
+
+  useEffect(() => {
+    if (selectedYearId) {
+      loadStats();
+    }
+  }, [selectedYearId, loadStats]);
 
   useEffect(() => {
     if (selectedYearId) {

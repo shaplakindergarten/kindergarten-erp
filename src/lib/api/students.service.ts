@@ -556,26 +556,24 @@ class StudentService {
   // GET STATS
   // ============================
 
-  async getStudentStats() {
+  async getStudentStats(academicYearId?: string) {
     try {
-      const [{ data: total }, { data: active }, { data: newThisMonth }] = await Promise.all([
-        this.getSupabase().from('students').select('id', { count: 'exact' }),
-        this.getSupabase().from('students').select('id', { count: 'exact' }).eq('status', 'active'),
-        this.getSupabase()
-          .from('students')
-          .select('id', { count: 'exact' })
+      const buildBaseQuery = () => {
+        let q = this.getSupabase().from('students').select('id', { count: 'exact' })
+        if (academicYearId) {
+          q = q.eq('academic_year_id', academicYearId)
+        }
+        return q
+      }
+
+      const [{ data: total }, { data: active }, { data: newThisMonth }, { data: inactive }, { data: transferred }] = await Promise.all([
+        buildBaseQuery(),
+        buildBaseQuery().eq('status', 'active'),
+        buildBaseQuery()
           .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+        buildBaseQuery().eq('status', 'inactive'),
+        buildBaseQuery().eq('status', 'transferred'),
       ])
-
-      const { data: inactive } = await this.getSupabase()
-        .from('students')
-        .select('id', { count: 'exact' })
-        .eq('status', 'inactive')
-
-      const { data: transferred } = await this.getSupabase()
-        .from('students')
-        .select('id', { count: 'exact' })
-        .eq('status', 'transferred')
 
       return {
         total: total?.length || 0,
@@ -829,7 +827,7 @@ export const bulkDeleteStudents = (ids: string[]) => studentService.bulkDeleteSt
 export const bulkUpdateStatus = (ids: string[], status: string) => studentService.bulkUpdateStatus(ids, status)
 export const updateStudentPhoto = (id: string, photoUrl: string) => studentService.updateStudentPhoto(id, photoUrl)
 export const uploadStudentPhoto = (studentId: string, file: File) => studentService.uploadPhoto(studentId, file)
-export const getStudentStats = () => studentService.getStudentStats()
+export const getStudentStats = (academicYearId?: string) => studentService.getStudentStats(academicYearId)
 export const exportStudentsCSV = (filters?: StudentFilters) => studentService.exportToCSV(filters)
 export const getStudentsForPrint = (filters?: PrintFilters) => studentService.getStudentsForPrint(filters)
 export const subscribeToStudents = async (onInsert: any, onUpdate: any, onDelete: any) =>
