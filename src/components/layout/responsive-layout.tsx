@@ -10,7 +10,8 @@ import {
   Upload, FolderTree, Printer, CreditCard, Award, Percent, BookMarked, Receipt, Package,
   ShoppingCart, Banknote, ArrowRightLeft, PieChart, Clock, Sparkles, CheckSquare, ScrollText,
   TableProperties, Lock, Send, BookOpen, Gift, Loader2, Activity, TrendingDown,
-  Wallet, DollarSign, Bookmark, FileBarChart, Building2, Trophy, ScanFace, CalendarDays, Plus
+  Wallet, DollarSign, Bookmark, FileBarChart, Building2, Trophy, ScanFace, CalendarDays, Plus,
+  Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -24,8 +25,8 @@ interface NavItem {
   icon: React.ReactNode;
   children?: NavItem[];
   roles?: string[];
-  badgeCount?: number;         // 🆕 Optional badge count (runtime injected)
-  badgeColor?: string;         // 🆕 Optional badge color class
+  badgeCount?: number;
+  badgeColor?: string;
 }
 
 interface SchoolSettings {
@@ -65,7 +66,6 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-5 w-5" />,
     roles: ["admin", "teacher", "staff"],
   },
-  // 🆕 Pending Admissions — badge injected at runtime
   {
     title: "Pending Admissions",
     href: "/dashboard/admissions",
@@ -379,6 +379,12 @@ const navigation: NavItem[] = [
     ],
   },
   {
+    title: "Landing Page",
+    href: "/admin/landing",
+    icon: <Globe className="h-5 w-5" />,
+    roles: ["admin"],
+  },
+  {
     title: "Settings",
     href: "/settings",
     icon: <Settings className="h-5 w-5" />,
@@ -416,7 +422,7 @@ const navigation: NavItem[] = [
 // ═══════════════════════════════════════════════════════
 const menuColors: Record<string, string> = {
   Dashboard: "from-indigo-500 to-indigo-600",
-  "Pending Admissions": "from-amber-500 to-orange-600",     // 🆕
+  "Pending Admissions": "from-amber-500 to-orange-600",
   "Student Management": "from-sky-500 to-blue-600",
   "Teacher & Staff": "from-violet-500 to-purple-600",
   "Fees Management": "from-emerald-500 to-green-600",
@@ -427,6 +433,7 @@ const menuColors: Record<string, string> = {
   Settings: "from-slate-500 to-slate-600",
   Notifications: "from-blue-500 to-blue-600",
   Reports: "from-purple-500 to-purple-600",
+  "Landing Page": "from-fuchsia-500 to-pink-600",
   "আমার প্রোফাইল": "from-sky-500 to-blue-600",
   "আমার ফলাফল": "from-purple-500 to-indigo-600",
   "আমার হাজিরা": "from-emerald-500 to-teal-600",
@@ -455,7 +462,6 @@ const MenuItem = React.memo(function MenuItem({
   const compactMode = collapsed || !showLabels;
   const paddingLeft = compactMode ? 0 : level === 0 ? 12 : level * 16 + 12;
 
-  // 🆕 Badge renderer (used in both parent & leaf)
   const renderBadge = () => {
     if (item.badgeCount === undefined || item.badgeCount <= 0) return null;
     return (
@@ -577,13 +583,11 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
-  // 🆕 Pending Admissions counter
   const [pendingAdmissionsCount, setPendingAdmissionsCount] = React.useState(0);
 
   const notifRef = React.useRef<HTMLDivElement>(null);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
 
-  // Auto-close on click outside
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -604,7 +608,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     setSearchOpen(false);
   }, [pathname]);
 
-  // Auto expand parent menus based on active pathname
   React.useEffect(() => {
     const parentHrefs: string[] = [];
     const findParents = (items: NavItem[]) => {
@@ -623,7 +626,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     }
   }, [pathname]);
 
-  // Dark mode toggle
   React.useEffect(() => {
     const isDark = localStorage.getItem("theme") === "dark" || (!localStorage.getItem("theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setIsDarkMode(isDark);
@@ -639,9 +641,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     else document.documentElement.classList.remove("dark");
   };
 
-  // ═══════════════════════════════════════════════════
-  // 🆕 PENDING ADMISSIONS — count + realtime
-  // ═══════════════════════════════════════════════════
   React.useEffect(() => {
     const supabase = createClient();
     const fetchCount = async () => {
@@ -671,11 +670,9 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Supabase Data Loading (profiles Table & settings)
   React.useEffect(() => {
     const supabase = createClient();
     async function loadData() {
-      // 1. Fetch School Settings
       try {
         const { data: schoolData } = await supabase.from("school_settings").select("*").limit(1).single();
         if (schoolData) {
@@ -694,7 +691,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
         console.error("Error loading school settings:", err);
       }
 
-      // 2. Fetch User Profile
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -727,7 +723,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
         setUserProfile((prev) => ({ ...prev, isLoading: false }));
       }
 
-      // 3. Load Notifications
       try {
         const { data: notifData } = await supabase
           .from("notifications")
@@ -742,7 +737,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     loadData();
   }, []);
 
-  // Responsive collapse
   React.useEffect(() => {
     const handleResize = () => setIsCollapsed(window.innerWidth < 1280);
     handleResize();
@@ -750,7 +744,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Global Search
   React.useEffect(() => {
     const supabase = createClient();
     const runSearch = async () => {
@@ -780,7 +773,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(debounceTimer);
   }, [searchValue]);
 
-  // Active Map Calculation
   const activeMap = React.useMemo(() => {
     const map = new Set<string>();
     const traverse = (items: NavItem[]) => {
@@ -799,7 +791,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     setExpandedHrefs((prev) => (prev.includes(href) ? prev.filter((h) => h !== href) : [...prev, href]));
   };
 
-  // Logout
   const handleLogout = async () => {
     const confirmed = window.confirm("আপনি কি নিশ্চিত যে আপনি লগআউট করতে চান?");
     if (!confirmed) return;
@@ -810,9 +801,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
     router.refresh();
   };
 
-  // ═══════════════════════════════════════════════════
-  // NAVIGATION FILTERING + BADGE INJECTION
-  // ═══════════════════════════════════════════════════
   const filteredNavigation = React.useMemo(() => {
     const normalizedRole = (userProfile.role || "").toLowerCase().trim();
 
@@ -843,7 +831,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
 
     const filtered = filterByRole(navigation);
 
-    // 🆕 Inject badge count into Pending Admissions item
     return filtered.map((item) => {
       if (item.href === "/dashboard/admissions") {
         return {
@@ -858,12 +845,10 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
 
   const showLabels = !isCollapsed;
 
-  // Role-based profile link
   const profileHref = userProfile.role?.toLowerCase() === "student" ? "/my-profile" : "/profile";
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
-      {/* HEADER */}
       <header
         className="sticky top-0 z-40 text-white shadow-lg backdrop-blur-md"
         style={{ background: `linear-gradient(135deg, ${schoolSettings.theme_primary_color} 0%, ${schoolSettings.theme_secondary_color} 100%)` }}
@@ -891,7 +876,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
 
-          {/* Desktop Search */}
           <div className="hidden flex-1 max-w-xl mx-4 md:flex">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/70" />
@@ -920,7 +904,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Right Header Actions */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setSearchOpen(!searchOpen)}
@@ -935,7 +918,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
               {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
-            {/* Notifications Dropdown */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
@@ -977,7 +959,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            {/* User Profile Menu */}
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -1056,7 +1037,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile Search Overlay */}
         {searchOpen && (
           <div className="px-4 pb-3 md:hidden">
             <div className="relative">
@@ -1074,9 +1054,7 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      {/* MAIN CONTAINER */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Desktop Sidebar */}
         <aside
           className={cn(
             "hidden lg:flex flex-col h-full bg-slate-950 text-slate-200 border-r border-slate-800 transition-all duration-300 shrink-0",
@@ -1102,7 +1080,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </aside>
 
-        {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setIsMobileMenuOpen(false)} />
@@ -1142,7 +1119,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Main Content Area */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
           <main className="flex-1 min-h-0 overflow-y-auto bg-background px-3 pb-4 pt-2 sm:px-4 md:px-6 md:pb-6 custom-scrollbar">
             <div className="mx-auto w-full max-w-7xl">{children}</div>
@@ -1150,7 +1126,6 @@ export function ResponsiveLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Custom Scrollbar Styles */}
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;

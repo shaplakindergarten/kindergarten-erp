@@ -10,8 +10,8 @@ import { revalidatePath } from "next/cache";
 export type ApproveResult =
   | {
       success: true;
-      studentId: string;      // "2025-P-001"
-      studentUuid: string;    // uuid
+      studentId: string;
+      studentUuid: string;
       studentName: string;
     }
   | {
@@ -65,7 +65,6 @@ async function generateStudentId(
   const classInitial = (className || "A").trim().charAt(0).toUpperCase() || "A";
   const prefix = `${admissionYear}-${classInitial}-`;
 
-  // Find highest serial with this prefix
   const { data: lastStudents } = await supabase
     .from("students")
     .select("student_id")
@@ -83,7 +82,6 @@ async function generateStudentId(
     }
   }
 
-  // Retry if collision (in rare race condition)
   for (let attempt = 0; attempt < 5; attempt++) {
     const candidate = `${prefix}${String(nextSerial + attempt).padStart(3, "0")}`;
 
@@ -98,7 +96,6 @@ async function generateStudentId(
     }
   }
 
-  // Fallback: use timestamp-based suffix
   return `${prefix}${Date.now().toString().slice(-4)}`;
 }
 
@@ -109,20 +106,21 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
   try {
     const supabase = await createClient();
 
-    // ─── 1. Verify role ───
+    // 1. Verify role
     const auth = await verifyAdminOrTeacher(supabase);
     if (!auth.ok) {
       return { success: false, error: auth.error || "Permission denied" };
     }
 
-    // ─── 2. Fetch pending admission ───
+    // 2. Fetch pending admission (🆕 includes academic_years join)
     const { data: pending, error: fetchError } = await supabase
       .from("pending_admissions")
       .select(
         `
         *,
         classes (id, name),
-        sections (id, name)
+        sections (id, name),
+        academic_years (id, year_name)
       `
       )
       .eq("id", pendingId)
@@ -139,14 +137,16 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
       };
     }
 
-    // ─── 3. Fetch current academic year ───
-    const { data: academicYear } = await supabase
-      .from("academic_years")
-      .select("id, year_name, start_date")
-      .eq("is_current", true)
-      .maybeSingle();
+    // 3. Validate academic year
+    if (!pending.academic_year_id) {
+      return {
+        success: false,
+        error:
+          "এই আবেদনে শিক্ষাবর্ষ নেই। সমাধান না করা পর্যন্ত অনুমোদন করা যাবে না।",
+      };
+    }
 
-    // ─── 4. Verify class + section still exist ───
+    // 4. Verify class + section still exist
     if (!pending.class_id || !pending.section_id) {
       return {
         success: false,
@@ -174,16 +174,12 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
       };
     }
 
-    // ─── 5. Generate student ID ───
+    // 5. Generate student ID
     const admissionYear = new Date().getFullYear();
     const className = pending.classes?.name || "Class";
     const studentId = await generateStudentId(supabase, className, admissionYear);
 
-    // ═══════════════════════════════════════════════════════════════
-    // Auto-generate class_roll for the new student
-    // Format: zero-padded 3-digit string (e.g., "001", "002", "100")
-    // Uniqueness: scoped to (class_id, section_id) via unique constraint
-    // ═══════════════════════════════════════════════════════════════
+    // 6. Auto-generate class_roll
     let generatedClassRoll: string | null = null;
 
     try {
@@ -194,10 +190,9 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
         .eq("section_id", pending.section_id)
         .not("class_roll", "is", null)
         .order("class_roll", { ascending: false })
-        .limit(50); // fetch a window, we'll compute max from this
+        .limit(50);
 
       if (!rollError && rollData && rollData.length > 0) {
-        // Find the highest numeric roll (ignore non-numeric values)
         let maxRoll = 0;
         for (const row of rollData) {
           const raw = String(row.class_roll || "").trim();
@@ -208,15 +203,14 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
         }
         generatedClassRoll = String(maxRoll + 1).padStart(3, "0");
       } else {
-        // No existing rolls in this class+section → start from 001
         generatedClassRoll = "001";
       }
     } catch (rollGenErr) {
       console.error("[Approve] class_roll generation failed:", rollGenErr);
-      generatedClassRoll = null; // fall back to NULL — non-fatal
+      generatedClassRoll = null;
     }
 
-    // ─── 6. Prepare students insert payload ───
+    // 7. Prepare students insert payload
     const insertPayload: Record<string, any> = {
       student_id: studentId,
       name: String(pending.name).trim(),
@@ -235,7 +229,8 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
 
       class_id: pending.class_id,
       section_id: pending.section_id,
-      academic_year_id: academicYear?.id || null,
+      // 🆕 Use the academic year chosen at application time
+      academic_year_id: pending.academic_year_id,
 
       village: pending.village || null,
       post_office: pending.post_office || null,
@@ -260,7 +255,7 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
       admission_date: new Date().toISOString().split("T")[0],
     };
 
-    // ─── 7. Insert into students (with retry on class_roll collision) ───
+    // 8. Insert into students (with retry on class_roll collision)
     let newStudent: any = null;
     let insertError: any = null;
 
@@ -279,17 +274,15 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
 
       insertError = error;
 
-      // Retry only on unique_class_section_roll collision
       const isRollCollision =
         error.code === "23505" &&
         (error.message?.includes("unique_class_section_roll") ||
           error.details?.includes("unique_class_section_roll"));
 
       if (!isRollCollision) {
-        break; // different error → give up
+        break;
       }
 
-      // Bump roll by 1 and retry
       const currentRaw = String(insertPayload.class_roll || "0").trim();
       const currentNum = /^\d+$/.test(currentRaw) ? parseInt(currentRaw, 10) : 0;
       insertPayload.class_roll = String(currentNum + 1).padStart(3, "0");
@@ -298,11 +291,9 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
     if (insertError || !newStudent) {
       console.error("[Approve] Insert failed:", insertError);
 
-      // Provide user-friendly error
       let message = "শিক্ষার্থী তৈরি করতে সমস্যা হয়েছে।";
 
       if (insertError?.code === "23505") {
-        // Unique violation
         if (insertError.message?.includes("unique_student_identity")) {
           message = "একই নাম, পিতা ও মাতার নামে একজন শিক্ষার্থী ইতিমধ্যে আছে।";
         } else if (insertError.message?.includes("student_id")) {
@@ -317,7 +308,7 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
       return { success: false, error: message };
     }
 
-    // ─── 8. Update pending_admissions ───
+    // 9. Update pending_admissions
     const { error: updateError } = await supabase
       .from("pending_admissions")
       .update({
@@ -331,7 +322,6 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
     if (updateError) {
       console.error("[Approve] Update pending failed:", updateError);
 
-      // Roll back student creation to keep consistency
       await supabase.from("students").delete().eq("id", newStudent.id);
 
       return {
@@ -340,7 +330,7 @@ export async function approveAdmission(pendingId: string): Promise<ApproveResult
       };
     }
 
-    // ─── 9. Revalidate paths ───
+    // 10. Revalidate paths
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/admissions");
     revalidatePath("/students/list");
@@ -383,13 +373,11 @@ export async function rejectAdmission(
 
     const supabase = await createClient();
 
-    // ─── Verify role ───
     const auth = await verifyAdminOrTeacher(supabase);
     if (!auth.ok) {
       return { success: false, error: auth.error || "Permission denied" };
     }
 
-    // ─── Fetch to verify status ───
     const { data: pending, error: fetchError } = await supabase
       .from("pending_admissions")
       .select("id, status, reference_no")
@@ -407,7 +395,6 @@ export async function rejectAdmission(
       };
     }
 
-    // ─── Update ───
     const { error: updateError } = await supabase
       .from("pending_admissions")
       .update({
@@ -440,7 +427,7 @@ export async function rejectAdmission(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ACTION 3: Mark as "Reviewing" (optional - for status tracking)
+// ACTION 3: Mark as "Reviewing"
 // ═══════════════════════════════════════════════════════════════════════
 export async function markAsReviewing(pendingId: string): Promise<RejectResult> {
   try {
@@ -455,7 +442,7 @@ export async function markAsReviewing(pendingId: string): Promise<RejectResult> 
       .from("pending_admissions")
       .update({ status: "reviewing" })
       .eq("id", pendingId)
-      .eq("status", "pending"); // only if currently pending
+      .eq("status", "pending");
 
     if (error) {
       return { success: false, error: "স্টেটাস পরিবর্তন করা যায়নি" };
@@ -469,13 +456,12 @@ export async function markAsReviewing(pendingId: string): Promise<RejectResult> 
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ACTION 4: Delete Admission (admin only, permanent)
+// ACTION 4: Delete Admission (admin only)
 // ═══════════════════════════════════════════════════════════════════════
 export async function deleteAdmission(pendingId: string): Promise<RejectResult> {
   try {
     const supabase = await createClient();
 
-    // Only admin can delete
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -492,14 +478,12 @@ export async function deleteAdmission(pendingId: string): Promise<RejectResult> 
       return { success: false, error: "Only admin can delete admissions" };
     }
 
-    // Fetch photo URL for cleanup
     const { data: pending } = await supabase
       .from("pending_admissions")
       .select("photo_url")
       .eq("id", pendingId)
       .maybeSingle();
 
-    // Delete from storage (non-fatal)
     if (pending?.photo_url) {
       try {
         const path = pending.photo_url.split("/admission-photos/")[1];

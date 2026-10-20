@@ -52,7 +52,7 @@ const admissionSchema = z.object({
   birth_cert_no: z.string().trim().max(50).optional(),
   class_id: z.string().uuid("Class is required"),
   section_id: z.string().uuid("Section is required"),
-  academic_year_id: z.string().uuid("Invalid academic year").optional(),
+  academic_year_id: z.string().uuid("শিক্ষাবর্ষ নির্বাচন করুন"),
   village: z.string().trim().max(255).optional(),
   post_office: z.string().trim().max(255).optional(),
   police_station: z.string().trim().max(255).optional(),
@@ -179,12 +179,6 @@ export default function PublicAdmissionPage() {
         ]);
         setClasses(classesData.data || []);
         setAcademicYears(yearsData.data || []);
-        if (yearsData.data && yearsData.data.length > 0) {
-          const currentYear = yearsData.data.find((y: any) =>
-            y.year_name?.includes(new Date().getFullYear().toString())
-          );
-          setValue("academic_year_id", currentYear ? currentYear.id : yearsData.data[0].id);
-        }
         if (districtsData.data) setDistricts(districtsData.data);
         if (policeData.data) setPoliceStations(policeData.data);
         if (postData.data) setPostOffices(postData.data);
@@ -196,7 +190,7 @@ export default function PublicAdmissionPage() {
       }
     }
     loadData();
-  }, [setValue]);
+  }, []);
 
   useEffect(() => {
     if (selectedClassId) {
@@ -237,8 +231,7 @@ export default function PublicAdmissionPage() {
 
   const resetForm = () => {
     reset({
-      gender: "male", class_id: "", section_id: "",
-      academic_year_id: academicYears.length > 0 ? academicYears[0].id : "",
+      gender: "male", class_id: "", section_id: "", academic_year_id: "",
       contact: "", fathers_contact: "", mothers_contact: "", whatsapp: "",
       birth_cert_no: "", father_nid_no: "", mother_nid_no: "",
       village: "", post_office: "", police_station: "", district: "",
@@ -459,10 +452,9 @@ export default function PublicAdmissionPage() {
         </div>
       </header>
 
-      {/* ✅ Hero with Dynamic Logo from Supabase */}
+      {/* Hero */}
       <div className="bg-gradient-to-br from-[#0a4d8c] to-[#0d5ca8] text-white py-6 sm:py-10 px-3 sm:px-4">
         <div className="max-w-5xl mx-auto text-center">
-          {/* ✅ Dynamic Logo from school_settings */}
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg overflow-hidden border-4 border-white/30">
             {schoolSettings.school_logo ? (
               <img
@@ -499,7 +491,7 @@ export default function PublicAdmissionPage() {
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-5 sm:space-y-6" noValidate>
 
-          {/* ═══════════════ SECTION 1: Basic Info ═══════════════ */}
+          {/* SECTION 1: Basic Info */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-[#0a4d8c] dark:text-blue-400 text-base sm:text-lg">
@@ -615,15 +607,38 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* ═══════════════ SECTION 2: Academic ═══════════════ */}
+          {/* SECTION 2: Academic */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-amber-50 dark:bg-amber-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-base sm:text-lg">
                 <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" /> একাডেমিক তথ্য
               </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">শ্রেণি ও শাখা নির্বাচন করুন</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">শিক্ষাবর্ষ, শ্রেণি ও শাখা নির্বাচন করুন</CardDescription>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
+              {/* 🆕 Academic Year */}
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="academic_year_id" className={`text-xs sm:text-sm ${errors.academic_year_id || fieldErrors.academic_year_id ? "text-red-500" : ""}`}>
+                  শিক্ষাবর্ষ (Academic Year) <span className="text-red-500">*</span>
+                </Label>
+                <Controller name="academic_year_id" control={control} render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger id="academic_year_id" className={`w-full text-sm ${errors.academic_year_id || fieldErrors.academic_year_id ? "border-red-500" : ""}`}>
+                      <SelectValue placeholder="শিক্ষাবর্ষ নির্বাচন করুন" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-900">
+                      {academicYears.map((y) => (
+                        <SelectItem key={y.id} value={y.id}>
+                          {y.name || y.year_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )} />
+                {(errors.academic_year_id || fieldErrors.academic_year_id) && (
+                  <p className="text-xs text-red-500">{errors.academic_year_id?.message || fieldErrors.academic_year_id}</p>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="class_id" className={`text-xs sm:text-sm ${errors.class_id || fieldErrors.class_id ? "text-red-500" : ""}`}>শ্রেণি *</Label>
                 <Controller name="class_id" control={control} render={({ field }) => (
@@ -655,7 +670,7 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* ═══════════════ SECTION 3: Present Address ═══════════════ */}
+          {/* SECTION 3: Present Address */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-emerald-50 dark:bg-emerald-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-base sm:text-lg">
@@ -695,7 +710,7 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* ═══════════════ SECTION 4: Permanent Address ═══════════════ */}
+          {/* SECTION 4: Permanent Address */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-purple-50 dark:bg-purple-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-base sm:text-lg">
@@ -731,7 +746,7 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* ═══════════════ SECTION 5: Contact ═══════════════ */}
+          {/* SECTION 5: Contact */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-sky-50 dark:bg-sky-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-sky-700 dark:text-sky-400 text-base sm:text-lg">
@@ -771,7 +786,7 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* ═══════════════ SECTION 6: Documents ═══════════════ */}
+          {/* SECTION 6: Documents */}
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-violet-50 dark:bg-violet-950/30 border-b p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-400 text-base sm:text-lg">
@@ -844,7 +859,7 @@ export default function PublicAdmissionPage() {
             </CardContent>
           </Card>
 
-          {/* Submit Button - Sticky on Mobile */}
+          {/* Submit Button */}
           <div className="sticky bottom-0 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-200 dark:border-slate-800 shadow-lg z-30 sm:static sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0 sm:shadow-none sm:pt-4 sm:border-t">
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
               <Link href="/" className="w-full sm:w-auto">

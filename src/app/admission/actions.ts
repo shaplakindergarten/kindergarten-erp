@@ -40,7 +40,7 @@ const admissionSchema = z.object({
 
   class_id: z.string().uuid("Invalid class selection"),
   section_id: z.string().uuid("Invalid section selection"),
-  academic_year_id: z.string().uuid("Invalid academic year").optional().nullable(),
+  academic_year_id: z.string().uuid("শিক্ষাবর্ষ নির্বাচন করা হয়নি"),
 
   village: z.string().trim().max(255).optional().nullable().transform((v) => v || null),
   post_office: z.string().trim().max(255).optional().nullable().transform((v) => v || null),
@@ -179,15 +179,19 @@ export async function submitPublicAdmission(
       return { success: false, error: "Class and section do not match." };
     }
 
-    // ─── Step 3: Get current academic year ───
+    // ─── Step 3: Validate academic year ───
     const { data: academicYear, error: yearError } = await supabase
       .from("academic_years")
-      .select("id")
-      .eq("is_current", true)
+      .select("id, year_name")
+      .eq("id", data.academic_year_id)
       .maybeSingle();
 
-    if (yearError) {
-      console.error("[Admission] Academic year fetch failed:", yearError);
+    if (yearError || !academicYear) {
+      console.error("[Admission] Academic year validation failed:", yearError);
+      return {
+        success: false,
+        error: "নির্বাচিত শিক্ষাবর্ষ সিস্টেমে নেই। পুনরায় নির্বাচন করুন।",
+      };
     }
 
     // ─── Step 4: Upload photo ───
@@ -239,7 +243,6 @@ export async function submitPublicAdmission(
     }
 
     // ─── Step 6: Insert into pending_admissions ───
-    // Generate UUID client-side so we don't need .select() (which requires SELECT privilege for anon)
     const newId = randomUUID();
 
     const { error: insertError } = await supabase
@@ -262,7 +265,7 @@ export async function submitPublicAdmission(
         birth_cert_no: data.birth_cert_no,
         class_id: data.class_id,
         section_id: data.section_id,
-        academic_year_id: academicYear?.id || null,
+        academic_year_id: data.academic_year_id,
         village: data.village,
         post_office: data.post_office,
         police_station: data.police_station,
@@ -284,7 +287,6 @@ export async function submitPublicAdmission(
 
     if (insertError) {
       console.error("[Admission] Insert failed:", insertError);
-      // Photo cleanup on failure
       if (photoUrl) {
         try {
           const path = photoUrl.split("/admission-photos/")[1];

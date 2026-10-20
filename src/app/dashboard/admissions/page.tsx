@@ -68,7 +68,7 @@ interface Admission {
   approved_student_id: string | null;
   classes?: { id: string; name: string } | null;
   sections?: { id: string; name: string } | null;
-  academic_years?: { id: string; name: string } | null;
+  academic_years?: { id: string; name: string; year_name?: string } | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -77,29 +77,22 @@ interface Admission {
 export default function AdmissionsDashboardPage() {
   const addToast = useToastStore((s) => s.addToast);
 
-  // ── Data ──
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Filters ──
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState<string>("");
 
-  // ── Dialogs ──
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  // ── Processing ──
   const [processing, setProcessing] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // ═══════════════════════════════════════════════════════════════════
-  // LOAD ADMISSIONS
-  // ═══════════════════════════════════════════════════════════════════
   const loadAdmissions = async () => {
     setLoading(true);
     try {
@@ -111,7 +104,7 @@ export default function AdmissionsDashboardPage() {
           *,
           classes (id, name),
           sections (id, name),
-          academic_years (id, name)
+          academic_years (id, name, year_name)
         `
         )
         .order("applied_at", { ascending: false });
@@ -135,9 +128,6 @@ export default function AdmissionsDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // REALTIME UPDATES
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -157,9 +147,6 @@ export default function AdmissionsDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // COMPUTED STATS
-  // ═══════════════════════════════════════════════════════════════════
   const stats = useMemo(() => {
     return {
       all: admissions.length,
@@ -170,9 +157,6 @@ export default function AdmissionsDashboardPage() {
     };
   }, [admissions]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // UNIQUE CLASSES FOR FILTER
-  // ═══════════════════════════════════════════════════════════════════
   const uniqueClasses = useMemo(() => {
     const map = new Map<string, string>();
     admissions.forEach((a) => {
@@ -183,23 +167,17 @@ export default function AdmissionsDashboardPage() {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [admissions]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // FILTERED LIST
-  // ═══════════════════════════════════════════════════════════════════
   const filteredAdmissions = useMemo(() => {
     let filtered = [...admissions];
 
-    // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((a) => a.status === statusFilter);
     }
 
-    // Class filter
     if (classFilter) {
       filtered = filtered.filter((a) => a.class_id === classFilter);
     }
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       filtered = filtered.filter(
@@ -216,9 +194,6 @@ export default function AdmissionsDashboardPage() {
     return filtered;
   }, [admissions, statusFilter, classFilter, search]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // HANDLERS
-  // ═══════════════════════════════════════════════════════════════════
   const openDetail = (admission: Admission) => {
     setSelectedAdmission(admission);
     setShowDetailDialog(true);
@@ -242,7 +217,6 @@ export default function AdmissionsDashboardPage() {
     setShowDeleteDialog(true);
   };
 
-  // ── Approve ──
   const handleApprove = async () => {
     if (!selectedAdmission || processing) return;
 
@@ -260,7 +234,6 @@ export default function AdmissionsDashboardPage() {
       setShowApproveDialog(false);
       setSelectedAdmission(null);
 
-      // Offer to view profile
       setTimeout(() => {
         if (
           window.confirm(
@@ -281,7 +254,6 @@ export default function AdmissionsDashboardPage() {
     }
   };
 
-  // ── Reject ──
   const handleReject = async () => {
     if (!selectedAdmission || processing) return;
 
@@ -317,7 +289,6 @@ export default function AdmissionsDashboardPage() {
     }
   };
 
-  // ── Delete ──
   const handleDelete = async () => {
     if (!selectedAdmission || processing) return;
 
@@ -343,13 +314,10 @@ export default function AdmissionsDashboardPage() {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════════════════════════
   return (
     <ResponsiveLayout>
       <div className="space-y-6 p-4 md:p-6">
-        {/* ─── HEADER ─── */}
+        {/* HEADER */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#0a4d8c] dark:text-blue-400 flex items-center gap-3">
@@ -371,7 +339,7 @@ export default function AdmissionsDashboardPage() {
           </Button>
         </div>
 
-        {/* ─── PENDING ALERT ─── */}
+        {/* PENDING ALERT */}
         {stats.pending > 0 && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -386,7 +354,7 @@ export default function AdmissionsDashboardPage() {
           </div>
         )}
 
-        {/* ─── STATS CARDS ─── */}
+        {/* STATS CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <StatCard
             label="মোট"
@@ -430,11 +398,10 @@ export default function AdmissionsDashboardPage() {
           />
         </div>
 
-        {/* ─── FILTERS ─── */}
+        {/* FILTERS */}
         <Card>
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Search */}
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 <Input
@@ -445,7 +412,6 @@ export default function AdmissionsDashboardPage() {
                 />
               </div>
 
-              {/* Class Filter */}
               <div className="relative">
                 <select
                   value={classFilter}
@@ -462,7 +428,6 @@ export default function AdmissionsDashboardPage() {
               </div>
             </div>
 
-            {/* Active filters summary */}
             {(search || classFilter || statusFilter !== "pending") && (
               <div className="flex items-center gap-2 mt-3 pt-3 border-t text-xs text-slate-500">
                 <Filter className="w-3.5 h-3.5" />
@@ -497,7 +462,7 @@ export default function AdmissionsDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* ─── LIST ─── */}
+        {/* LIST */}
         {loading ? (
           <div className="text-center py-16">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#0a4d8c]" />
@@ -533,9 +498,7 @@ export default function AdmissionsDashboardPage() {
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════════════
-            DETAIL DIALOG
-        ═══════════════════════════════════════════════════════ */}
+        {/* DETAIL DIALOG */}
         <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             {selectedAdmission && (
@@ -575,7 +538,14 @@ export default function AdmissionsDashboardPage() {
                   <DetailSection title="একাডেমিক তথ্য" icon={GraduationCap}>
                     <DetailRow label="শ্রেণি" value={selectedAdmission.classes?.name || "-"} />
                     <DetailRow label="শাখা" value={selectedAdmission.sections?.name || "-"} />
-                    <DetailRow label="শিক্ষাবর্ষ" value={selectedAdmission.academic_years?.name || "-"} />
+                    <DetailRow
+                      label="শিক্ষাবর্ষ"
+                      value={
+                        selectedAdmission.academic_years?.name ||
+                        selectedAdmission.academic_years?.year_name ||
+                        "⚠️ নেই"
+                      }
+                    />
                   </DetailSection>
 
                   <DetailSection title="বর্তমান ঠিকানা" icon={MapPin}>
@@ -675,9 +645,7 @@ export default function AdmissionsDashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ═══════════════════════════════════════════════════════
-            APPROVE CONFIRMATION
-        ═══════════════════════════════════════════════════════ */}
+        {/* APPROVE CONFIRMATION */}
         <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -695,6 +663,14 @@ export default function AdmissionsDashboardPage() {
                 <p className="font-bold text-lg">{selectedAdmission.name}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   শ্রেণি: {selectedAdmission.classes?.name} — {selectedAdmission.sections?.name}
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  শিক্ষাবর্ষ:{" "}
+                  <strong>
+                    {selectedAdmission.academic_years?.name ||
+                      selectedAdmission.academic_years?.year_name ||
+                      "⚠️ নেই"}
+                  </strong>
                 </p>
                 <p className="text-xs text-slate-500">
                   Reference: <span className="font-mono">{selectedAdmission.reference_no}</span>
@@ -731,9 +707,7 @@ export default function AdmissionsDashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ═══════════════════════════════════════════════════════
-            REJECT DIALOG
-        ═══════════════════════════════════════════════════════ */}
+        {/* REJECT DIALOG */}
         <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -790,9 +764,7 @@ export default function AdmissionsDashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ═══════════════════════════════════════════════════════
-            DELETE DIALOG
-        ═══════════════════════════════════════════════════════ */}
+        {/* DELETE DIALOG */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -935,7 +907,6 @@ function AdmissionCard({
     <Card className={`border-l-4 ${borderColor} hover:shadow-md transition-shadow`}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start gap-4">
-          {/* Photo */}
           <div className="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden shrink-0 border-2 border-white shadow-md">
             {admission.photo_url ? (
               <img
@@ -950,7 +921,6 @@ function AdmissionCard({
             )}
           </div>
 
-          {/* Info */}
           <div className="flex-1 min-w-[250px]">
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">
@@ -990,7 +960,6 @@ function AdmissionCard({
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex flex-wrap gap-2 ml-auto">
             <Button
               variant="outline"

@@ -151,25 +151,26 @@ function StudentsListContent() {
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [isCreatingAccounts, setIsCreatingAccounts] = useState(false);
 
-  // Form
+  // ✅ Form — সব default value "" বা "all" দিয়ে initialize করা হয়েছে
   const { register, handleSubmit, watch, setValue } = useForm<FilterFormData>({
     resolver: zodResolver(filterSchema),
     defaultValues: {
-      search: searchParams.get("search") ?? undefined,
-      class_id: searchParams.get("class_id") ?? undefined,
-      section_id: searchParams.get("section_id") ?? undefined,
-      status: searchParams.get("status") ?? undefined,
-      sort_by: searchParams.get("sort_by") ?? undefined,
-      sort_order: (searchParams.get("sort_order") as "asc" | "desc") ?? undefined,
+      search: searchParams.get("search") ?? "",
+      class_id: searchParams.get("class_id") ?? "all",
+      section_id: searchParams.get("section_id") ?? "all",
+      status: searchParams.get("status") ?? "all",
+      sort_by: searchParams.get("sort_by") ?? "created_at",
+      sort_order: (searchParams.get("sort_order") as "asc" | "desc") ?? "desc",
     },
   });
 
-  const search = watch("search");
-  const classFilter = watch("class_id");
-  const sectionFilter = watch("section_id");
-  const statusFilter = watch("status");
-  const sortBy = watch("sort_by");
-  const sortOrder = watch("sort_order");
+  // ✅ watch কে সবসময় string হিসেবে রাখা হয়েছে (undefined নয়)
+  const search = watch("search") ?? "";
+  const classFilter = watch("class_id") ?? "all";
+  const sectionFilter = watch("section_id") ?? "all";
+  const statusFilter = watch("status") ?? "all";
+  const sortBy = watch("sort_by") ?? "created_at";
+  const sortOrder = watch("sort_order") ?? "desc";
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -651,7 +652,7 @@ function StudentsListContent() {
           </div>
         )}
 
-        {/* Table Container - flex-1 with overflow-hidden */}
+        {/* Table Container */}
         <div className="flex-1 overflow-hidden px-3 pb-3 min-h-0">
           <Card className="h-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 flex flex-col">
             <CardContent className="flex-1 p-0 overflow-hidden">
@@ -831,7 +832,7 @@ function StudentsListContent() {
           </Card>
         </div>
 
-        {/* Fixed Footer Pagination - Fixed Previous & Next Button Layout */}
+        {/* Fixed Footer Pagination */}
         <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 z-20">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap shrink-0">

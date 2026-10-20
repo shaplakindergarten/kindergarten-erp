@@ -89,7 +89,6 @@ export interface PrintFilters {
 // ============================
 
 class StudentService {
-  // ✅ ফিক্স ১: সিঙ্ক্রোনাস মেথড (await ছাড়া)
   private getSupabase() {
     return getSupabaseClient()
   }
@@ -171,10 +170,6 @@ class StudentService {
     }
   }
 
-  /**
-   * ✅ FIXED: Get single student by ID with proper error handling
-   * এবং retry mechanism
-   */
   async getStudentById(id: string, retries: number = 5): Promise<Student | null> {
     if (!id) {
       console.error('❌ Student ID is missing')
@@ -183,7 +178,6 @@ class StudentService {
 
     console.log(`🔍 Fetching student with ID: ${id}`)
 
-    // ✅ প্রথমে basic query করে দেখি student আছে কিনা
     const { data: basicData, error: basicError } = await this.getSupabase()
       .from('students')
       .select('*')
@@ -202,7 +196,6 @@ class StudentService {
 
     console.log('✅ Basic student data found:', basicData)
 
-    // ✅ এখন join query চেষ্টা করি - কিন্তু যদি fail করে তাহলে basic data return করি
     try {
       const { data, error } = await this.getSupabase()
         .from('students')
@@ -217,7 +210,6 @@ class StudentService {
 
       if (error) {
         console.warn('⚠️ Join query failed, returning basic data:', error)
-        // ✅ JOIN fail করলেও basic data return করি
         return basicData as Student
       }
 
@@ -228,16 +220,12 @@ class StudentService {
 
       console.log('✅ Full student data loaded:', data)
       return data as Student
-
     } catch (err) {
       console.warn('⚠️ Unexpected error in join query, returning basic data:', err)
       return basicData as Student
     }
   }
 
-  /**
-   * ✅ NEW: Get student by student_id (not UUID)
-   */
   async getStudentByStudentId(studentId: string): Promise<Student | null> {
     if (!studentId) {
       console.error('❌ Student ID is missing')
@@ -264,7 +252,6 @@ class StudentService {
 
     console.log('✅ Student found by student_id:', basicData)
 
-    // Try to get joins
     try {
       const { data, error } = await this.getSupabase()
         .from('students')
@@ -287,17 +274,14 @@ class StudentService {
     }
   }
 
-  /**
-   * ✅ DEBUG: Get student by ID with full error details
-   */
-  async getStudentByIdDebug(id: string): Promise<{ 
-    success: boolean; 
-    data?: Student | null; 
+  async getStudentByIdDebug(id: string): Promise<{
+    success: boolean;
+    data?: Student | null;
     error?: any;
     steps?: any[];
   }> {
     const steps: any[] = []
-    
+
     if (!id) {
       return { success: false, error: 'Student ID is missing', steps }
     }
@@ -305,20 +289,18 @@ class StudentService {
     console.log('🔍 Debug fetching student with ID:', id)
 
     try {
-      // Step 1: Check connection
       steps.push({ step: 1, action: 'Checking Supabase connection' })
       const { data: testData, error: testError } = await this.getSupabase()
         .from('students')
         .select('count')
         .limit(1)
-      
+
       if (testError) {
         steps.push({ step: 1, status: 'error', error: testError })
         return { success: false, error: testError, steps }
       }
       steps.push({ step: 1, status: 'success' })
 
-      // Step 2: Basic query
       steps.push({ step: 2, action: 'Fetching basic student data' })
       const { data: basicData, error: basicError } = await this.getSupabase()
         .from('students')
@@ -337,7 +319,6 @@ class StudentService {
       }
       steps.push({ step: 2, status: 'success', data: basicData })
 
-      // Step 3: Join query
       steps.push({ step: 3, action: 'Fetching with joins' })
       const { data, error } = await this.getSupabase()
         .from('students')
@@ -357,7 +338,6 @@ class StudentService {
 
       steps.push({ step: 3, status: 'success', data })
       return { success: true, data: data || basicData, steps }
-
     } catch (err) {
       steps.push({ step: 'error', error: err })
       return { success: false, error: err, steps }
@@ -375,7 +355,7 @@ class StudentService {
           .single()
 
         const classInitial = classData.data?.name?.charAt(0).toUpperCase() || 'X'
-        
+
         const { data: lastStudent } = await this.getSupabase()
           .from('students')
           .select('student_id')
@@ -620,7 +600,7 @@ class StudentService {
   async exportToCSV(filters: StudentFilters = {}): Promise<{ success: boolean; data?: string; error?: string }> {
     try {
       const response = await this.getStudents({ ...filters, limit: 1000 })
-      
+
       if (!response.data || response.data.length === 0) {
         return { success: false, error: 'No data to export' }
       }
@@ -656,7 +636,7 @@ class StudentService {
   }
 
   // ============================
-  // ✅ NEW: GET STUDENTS FOR PRINT REPORTS
+  // GET STUDENTS FOR PRINT REPORTS
   // ============================
 
   async getStudentsForPrint(filters: PrintFilters = {}): Promise<{ data: Student[]; total: number }> {
@@ -713,7 +693,7 @@ class StudentService {
   }
 
   // ============================
-  // ✅ FINAL FIX: REALTIME SUBSCRIPTION
+  // ✅ REALTIME SUBSCRIPTION (UPDATED)
   // ============================
 
   async subscribeToChanges(
@@ -721,49 +701,68 @@ class StudentService {
     onUpdate: (payload: any) => void,
     onDelete: (payload: any) => void
   ): Promise<RealtimeChannel> {
-    // ১. আগের সাবস্ক্রিপশন সম্পূর্ণ মুছে ফেলুন (Channel Name Collision এড়াতে)
+    // ১. পুরনো subscription clean করুন (HMR/StrictMode collision এড়াতে)
     await this.unsubscribe()
 
-    // ২. ইউনিক Channel Name তৈরি করুন (যাতে HMR/Strict Mode-এ collide না করে)
-    const channelName = `students-changes-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+    // ২. Unique channel name (HMR-এ collide না করার জন্য)
+    const channelName = `students-changes-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 11)}`
+
     const channel = this.getSupabase()
       .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'students' },
-        (payload) => onInsert(payload)
+        (payload) => {
+          console.log('🔔 INSERT event received:', payload)
+          onInsert(payload)
+        }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'students' },
-        (payload) => onUpdate(payload)
+        (payload) => {
+          console.log('🔔 UPDATE event received:', payload)
+          onUpdate(payload)
+        }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'students' },
-        (payload) => onDelete(payload)
+        (payload) => {
+          console.log('🔔 DELETE event received:', payload)
+          onDelete(payload)
+        }
       )
 
     this.subscription = channel
 
-    // ৩. Subscribe করার সময় Callback দিন (Status ট্র্যাক করতে)
-    channel.subscribe((status) => {
-      console.log(`📡 Students realtime status for ${channelName}:`, status)
+    // ৩. Subscribe + আসল error log (err parameter রিসিভ করা)
+    channel.subscribe((status, err) => {
+      console.log(`📡 Students realtime status [${channelName}]:`, status, err)
 
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ Students realtime subscribed successfully')
-      }
+      switch (status) {
+        case 'SUBSCRIBED':
+          console.log('✅ Students realtime subscribed successfully')
+          break
 
-      if (status === 'CHANNEL_ERROR') {
-        console.error('❌ Students realtime channel error')
-      }
+        case 'CHANNEL_ERROR':
+          // 💡 এখানে আসল কারণ দেখতে পাবেন
+          console.error('❌ Students realtime channel error — details:', {
+            message: err?.message,
+            name: err?.name,
+            full: err,
+          })
+          break
 
-      if (status === 'TIMED_OUT') {
-        console.error('⏱️ Students realtime subscription timed out')
-      }
+        case 'TIMED_OUT':
+          console.error('⏱️ Students realtime subscription timed out')
+          break
 
-      if (status === 'CLOSED') {
-        console.warn('⚠️ Students realtime channel closed')
+        case 'CLOSED':
+          console.warn('⚠️ Students realtime channel closed')
+          break
       }
     })
 
@@ -772,9 +771,16 @@ class StudentService {
 
   async unsubscribe(): Promise<void> {
     if (this.subscription) {
-      // removeChannel-এর পর subscription-কে null করা হচ্ছে
-      await this.getSupabase().removeChannel(this.subscription)
+      const channel = this.subscription
+      // ✅ আগে null করুন, তারপর removeChannel — stale reference এড়াতে
       this.subscription = null
+
+      try {
+        await this.getSupabase().removeChannel(channel)
+        console.log('🧹 Students realtime channel removed')
+      } catch (err) {
+        console.warn('⚠️ Error removing realtime channel:', err)
+      }
     }
   }
 }
@@ -797,7 +803,7 @@ export const uploadStudentPhoto = (studentId: string, file: File) => studentServ
 export const getStudentStats = () => studentService.getStudentStats()
 export const exportStudentsCSV = (filters?: StudentFilters) => studentService.exportToCSV(filters)
 export const getStudentsForPrint = (filters?: PrintFilters) => studentService.getStudentsForPrint(filters)
-export const subscribeToStudents = async (onInsert: any, onUpdate: any, onDelete: any) => 
+export const subscribeToStudents = async (onInsert: any, onUpdate: any, onDelete: any) =>
   studentService.subscribeToChanges(onInsert, onUpdate, onDelete)
 export const unsubscribeFromStudents = () => studentService.unsubscribe()
 
