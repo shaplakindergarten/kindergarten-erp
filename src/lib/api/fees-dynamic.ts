@@ -46,32 +46,22 @@ export async function getStudentDynamicLedger(studentId: string) {
     }
 
     // --- STEP 2: Resolve academic_year_id ---
-    let academicYearId = student.academic_year_id
+    const academicYearId = student.academic_year_id
     if (!academicYearId) {
-      const { data: currentAcademicYear } = await supabase
-        .from('academic_years')
-        .select('id, start_date')
-        .eq('is_current', true)
-        .single()
-
-      if (currentAcademicYear) {
-        academicYearId = currentAcademicYear.id
-      } else {
-        return {
-          student: { 
-            id: student.id, 
-            name: student.name, 
-            admission_no: student.student_id 
-          },
-          categories: [],
-          opening_balance: 0,
-          current_charges: 0,
-          total_discount: 0,
-          total_fine: 0,
-          total_paid: 0,
-          remaining_due: 0,
-          message: 'No academic year configured'
-        }
+      return {
+        student: {
+          id: student.id,
+          name: student.name,
+          admission_no: student.student_id
+        },
+        categories: [],
+        opening_balance: 0,
+        current_charges: 0,
+        total_discount: 0,
+        total_fine: 0,
+        total_paid: 0,
+        remaining_due: 0,
+        error: 'Student has no academic year assigned. Cannot load fee ledger.'
       }
     }
 
