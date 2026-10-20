@@ -325,6 +325,10 @@ export async function getUnassignedStudents(filters?: {
     );
   }
 
+  if (academic_year_id && academic_year_id !== 'all') {
+    query = query.eq('academic_year_id', academic_year_id);
+  }
+
   query = query.range(offset, offset + limit - 1);
 
   const { data: students, error, count } = await query;
@@ -396,14 +400,20 @@ export async function getUnassignedStudents(filters?: {
   };
 }
 
-export async function getFeeAssignmentStats(): Promise<FeeAssignmentStats> {
+export async function getFeeAssignmentStats(academic_year_id?: string): Promise<FeeAssignmentStats> {
   const supabase = await createClient();
 
   try {
-    const { data: studentsData, error: studentsError } = await supabase
+    let statsQuery = supabase
       .from('students')
       .select('id, class_id', { count: 'exact' })
-      .eq('status', 'active');
+      .eq('status', 'active')
+
+    if (academic_year_id && academic_year_id !== 'all') {
+      statsQuery = statsQuery.eq('academic_year_id', academic_year_id)
+    }
+
+    const { data: studentsData, error: studentsError } = await statsQuery
 
     if (studentsError) throw studentsError;
 

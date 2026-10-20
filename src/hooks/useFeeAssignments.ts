@@ -57,8 +57,8 @@ export function useFeeAssignments() {
     isLoading: isLoadingStats,
     refetch: refetchStats,
   } = useQuery({
-    queryKey: ['fee-assignment-stats'],
-    queryFn: () => getFeeAssignmentStats(),
+    queryKey: ['fee-assignment-stats', filters.academic_year_id],
+    queryFn: () => getFeeAssignmentStats(filters.academic_year_id),
     staleTime: 5 * 60 * 1000,
     retry: 1,
     throwOnError: false,

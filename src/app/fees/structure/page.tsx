@@ -53,6 +53,8 @@ import {
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 // ============================================
@@ -163,10 +165,16 @@ async function fetchFeeCategories(): Promise<FeeCategory[]> {
   return data || []
 }
 
-async function fetchStructures(): Promise<FeeStructure[]> {
-  const { data: structures, error: structuresError } = await supabase
+async function fetchStructures(academicYearId?: string): Promise<FeeStructure[]> {
+  let query = supabase
     .from("fee_structures")
     .select("*")
+
+  if (academicYearId) {
+    query = query.eq("academic_year_id", academicYearId)
+  }
+
+  const { data: structures, error: structuresError } = await query
     .order("created_at", { ascending: false })
 
   if (structuresError) {
@@ -450,12 +458,12 @@ async function toggleStructureStatus(id: string, currentStatus: boolean): Promis
 // HOOKS
 // ============================================
 
-function useFeeStructures() {
+function useFeeStructures(academicYearId?: string) {
   const queryClient = useQueryClient()
 
   const structuresQuery = useQuery({
-    queryKey: ["fee-structures"],
-    queryFn: fetchStructures,
+    queryKey: ["fee-structures", academicYearId],
+    queryFn: () => fetchStructures(academicYearId),
   })
 
   const academicYearsQuery = useQuery({
@@ -897,6 +905,9 @@ function EmptyState({
 // ============================================
 
 export default function FeeStructurePage() {
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
+
   const {
     structures,
     academicYears,
@@ -912,10 +923,26 @@ export default function FeeStructurePage() {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useFeeStructures()
+  } = useFeeStructures(selectedYearId)
+
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterAcademicYear, setFilterAcademicYear] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
 
   const [currentPage, setCurrentPage] = useState(1)
@@ -948,17 +975,17 @@ export default function FeeStructurePage() {
         className.includes(searchLower) ||
         categoryNames.includes(searchLower)
 
-      const matchesYear = !filterAcademicYear || s.academic_year_id === filterAcademicYear
       const matchesStatus =
         filterStatus === "all" || (filterStatus === "active" ? s.is_active : !s.is_active)
 
-      return matchesSearch && matchesYear && matchesStatus
+      return matchesSearch && matchesStatus
     })
-  }, [structures, searchQuery, filterAcademicYear, filterStatus])
+  }, [structures, searchQuery, filterStatus])
 
   const hasFilters = useMemo(() => {
-    return !!(filterAcademicYear || filterStatus !== "all")
-  }, [filterAcademicYear, filterStatus])
+    return filterStatus !== "all"
+
+  }, [filterStatus])
 
   // FIXED: Selected categories filtered from available categories
   const selectedCategories = useMemo(() => {
@@ -972,12 +999,12 @@ export default function FeeStructurePage() {
   }, [filteredStructures, currentPage])
 
   const resetForm = useCallback(() => {
-    setAcademicYearId("")
+    setAcademicYearId(selectedYearId)
     setClassId("")
     setSelectedCategoryIds(new Set())
     setDescription("")
     setFormError("")
-  }, [])
+  }, [selectedYearId])
 
   const handleCreate = useCallback(() => {
     resetForm()
@@ -1121,7 +1148,6 @@ export default function FeeStructurePage() {
   )
 
   const clearFilters = useCallback(() => {
-    setFilterAcademicYear(null)
     setFilterStatus("all")
     setSearchQuery("")
     setCurrentPage(1)
@@ -1217,20 +1243,19 @@ export default function FeeStructurePage() {
 
               {/* Academic Year */}
               <Select
-                value={filterAcademicYear || "all"}
+                value={selectedYearId}
                 onValueChange={(value) => {
-                  setFilterAcademicYear(value === "all" ? null : value)
+                  setSelectedYearId(value)
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 w-[110px] text-xs bg-white dark:bg-slate-900 border-border text-foreground rounded-lg flex-shrink-0">
-                  <SelectValue placeholder="All Years" />
+                <SelectTrigger className="h-8 w-[140px] text-xs bg-white dark:bg-slate-900 border-border text-foreground rounded-lg flex-shrink-0">
+                  <SelectValue placeholder="Select Year" />
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-slate-950 border-border rounded-lg shadow-lg">
-                  <SelectItem value="all" className="text-xs text-foreground">All Years</SelectItem>
-                  {academicYears.map((year) => (
+                  {activeYears.map((year) => (
                     <SelectItem key={year.id} value={year.id} className="text-xs text-foreground">
-                      {year.year_name || year.name}
+                      {year.year_name} {year.is_current ? "(Current)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1376,9 +1401,9 @@ export default function FeeStructurePage() {
                     <SelectValue placeholder="Select academic year" />
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-slate-950 border-border rounded-lg shadow-lg">
-                    {academicYears.map((year) => (
+                    {activeYears.map((year) => (
                       <SelectItem key={year.id} value={year.id} className="text-foreground">
-                        {year.year_name || year.name}
+                        {year.year_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

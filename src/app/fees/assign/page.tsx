@@ -5,16 +5,44 @@ import { RefreshCw, Users } from 'lucide-react';
 import { ResponsiveLayout } from "@/components/layout/responsive-layout";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useFeeAssignments } from '@/hooks/useFeeAssignments';
 import { useFeeStructures } from '@/hooks/useFeeStructures';
-import { useAcademicYears } from '@/hooks/useAcademicYears';
 import { useClasses } from '@/hooks/useClasses';
 import { useSections } from '@/hooks/useSections';
+import { getAllActiveYears, type AcademicYearRecord } from '@/lib/api/academic-year-context';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { AssignmentScopeSelector } from './components/AssignmentScopeSelector';
 import { AssignmentStats } from './components/AssignmentStats';
 import { BulkAssignDialog } from './components/BulkAssignDialog';
 
 export default function FeeAssignmentsPage() {
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
+
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        const years = await getAllActiveYears(supabase)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
+
   const {
     stats,
     unassignedStudents,
@@ -25,10 +53,14 @@ export default function FeeAssignmentsPage() {
     refreshAll,
   } = useFeeAssignments();
 
-  const { data: structures = [] } = useFeeStructures();
-  const { data: academicYears = [] } = useAcademicYears();
+  const { data: allStructures = [] } = useFeeStructures();
   const { data: classes = [] } = useClasses();
   const { data: sections = [] } = useSections();
+
+  const structures = useMemo(() => {
+    if (!selectedYearId) return allStructures
+    return allStructures.filter((s) => s.academic_year_id === selectedYearId)
+  }, [allStructures, selectedYearId])
 
   const [scope, setScope] = useState<any>({
     mode: 'whole_section',
@@ -37,6 +69,12 @@ export default function FeeAssignmentsPage() {
     section_id: '',
   });
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (selectedYearId) {
+      setScope((prev: any) => ({ ...prev, academic_year_id: selectedYearId }))
+    }
+  }, [selectedYearId])
 
   useEffect(() => {
     setFilters((prev) => ({
@@ -82,31 +120,43 @@ export default function FeeAssignmentsPage() {
             <h1 className="text-2xl font-bold text-white">Fee Structure Assignments</h1>
             <p className="text-sm text-white/80">Assign fee structures to students across classes, sections, or individually.</p>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="secondary"
-              onClick={refreshAll}
-              disabled={isLoading}
-              className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              onClick={() => setAssignDialogOpen(true)}
-              disabled={!canOpenAssignDialog}
-              className="bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Assign Fee Structure
-            </Button>
-          </div>
-        </div>
+           <div className="flex gap-2 flex-wrap items-center">
+             <Select value={selectedYearId} onValueChange={setSelectedYearId} disabled={isLoading}>
+               <SelectTrigger className="h-8 w-[170px] text-xs bg-white dark:bg-slate-900 border border-border rounded-lg">
+                 <SelectValue placeholder="Select Academic Year" />
+               </SelectTrigger>
+               <SelectContent className="bg-white dark:bg-slate-950 border border-border rounded-lg shadow-lg">
+                 {activeYears.map((year) => (
+                   <SelectItem key={year.id} value={year.id} className="text-xs">
+                     {year.year_name} {year.is_current ? "(Current)" : ""}
+                   </SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+             <Button
+               variant="secondary"
+               onClick={refreshAll}
+               disabled={isLoading}
+               className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30"
+             >
+               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+               Refresh
+             </Button>
+             <Button
+               onClick={() => setAssignDialogOpen(true)}
+               disabled={!canOpenAssignDialog}
+               className="bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg"
+             >
+               <Users className="h-4 w-4 mr-2" />
+               Assign Fee Structure
+             </Button>
+           </div>
+         </div>
 
         <AssignmentStats stats={stats} isLoading={isLoadingStats} />
 
         <AssignmentScopeSelector
-          academicYears={academicYears}
+          academicYears={activeYears}
           classes={classes}
           sections={sections}
           onScopeChange={setScope}
@@ -119,7 +169,7 @@ export default function FeeAssignmentsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl border border-muted/50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Academic Year</p>
-                <p className="mt-2 font-medium">{academicYears.find((year) => year.id === scope.academic_year_id)?.year_name || 'Not selected'}</p>
+                <p className="mt-2 font-medium">{activeYears.find((year) => year.id === scope.academic_year_id)?.year_name || 'Not selected'}</p>
               </div>
               <div className="rounded-xl border border-muted/50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Scope Mode</p>
@@ -141,7 +191,7 @@ export default function FeeAssignmentsPage() {
             refreshAll();
           }}
           structures={structures}
-          academicYears={academicYears}
+          academicYears={activeYears}
           scope={scope}
           classes={classes}
           sections={sections}

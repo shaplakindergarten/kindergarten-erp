@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
@@ -53,6 +53,8 @@ import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { formatCurrency } from "@/lib/utils"
 import { useFeeCategories, type FeeCategory } from "@/hooks/useFeeCategories"
 import { CustomScheduleInput } from "@/components/fees/CustomScheduleInput"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 // Frequency options with brighter colors
 const FREQUENCY_OPTIONS = [
@@ -89,6 +91,26 @@ const StatCard = ({ title, value, icon: Icon, gradient, iconGradient, trend, val
 )
 
 export default function FeeCategoriesPage() {
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
+
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        const years = await getAllActiveYears(supabase)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
+
   const {
     categories,
     loading,
@@ -354,7 +376,23 @@ export default function FeeCategoriesPage() {
                 <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
               </button>
             )}
-          </div>
+           </div>
+
+          {/* Academic Year selector (disabled - fee_categories has no academic_year_id) */}
+          <Select value={selectedYearId} onValueChange={setSelectedYearId} disabled>
+            <SelectTrigger className="h-8 w-[170px] text-xs bg-white dark:bg-slate-900 border-border text-foreground rounded-lg flex-shrink-0">
+              <SelectValue placeholder="Select Academic Year" />
+            </SelectTrigger>
+            <SelectContent className="bg-white dark:bg-slate-950 border-border rounded-lg shadow-lg">
+              {activeYears.map((year) => (
+                <SelectItem key={year.id} value={year.id} className="text-xs text-foreground">
+                  {year.year_name}
+                  {year.is_current ? " (Current)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-full">
             {filteredCategories.length} of {categories.length} categories
           </div>
