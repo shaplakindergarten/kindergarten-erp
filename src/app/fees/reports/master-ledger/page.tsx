@@ -427,6 +427,9 @@ export default function MasterFeeLedgerPage() {
 
       if (filterClass !== "all") studentQuery = studentQuery.eq("class_id", filterClass)
       if (filterSection !== "all") studentQuery = studentQuery.eq("section_id", filterSection)
+      if (academicYearId && academicYearId.trim() !== "") {
+        studentQuery = studentQuery.eq("academic_year_id", academicYearId)
+      }
 
       const { data: studentData, error: studentErr } = await studentQuery
       if (studentErr) throw studentErr
@@ -1062,11 +1065,12 @@ export default function MasterFeeLedgerPage() {
 
             <div className="flex flex-wrap gap-1.5 sm:gap-2 flex-1 lg:min-w-0">
               <div className="flex-1 min-w-[110px] sm:min-w-[130px]">
-                <Select value={academicYearId} onValueChange={setAcademicYearId}>
+                <Select value={academicYearId || "all"} onValueChange={(v) => setAcademicYearId(v === "all" ? "" : v)}>
                   <SelectTrigger className="h-8 text-[11px] sm:text-xs bg-white/15 border-white/25 text-white">
                     <SelectValue placeholder="Year" />
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+                    <SelectItem value="all" className="text-xs">All Years</SelectItem>
                     {academicYears.map((ay) => (
                       <SelectItem key={ay.id} value={ay.id} className="text-xs">
                         {ay.name} {ay.is_current ? "(Current)" : ""}
