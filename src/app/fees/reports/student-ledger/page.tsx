@@ -421,6 +421,10 @@ export default function StudentWiseLedgerPage() {
         query = query.eq("section_id", selectedSection)
       }
 
+      if (academicYearId && academicYearId.trim() !== "") {
+        query = query.eq("academic_year_id", academicYearId)
+      }
+
       const { data: studentsData, error: studentsError } = await query
 
       if (studentsError) {
@@ -726,9 +730,9 @@ export default function StudentWiseLedgerPage() {
     fetchSections()
   }, [selectedClass])
 
-  useEffect(() => {
-    fetchStudents()
-  }, [selectedClass, selectedSection])
+   useEffect(() => {
+     fetchStudents()
+   }, [selectedClass, selectedSection, academicYearId])
 
   // =========================================
   // HANDLE STUDENT SELECT
@@ -1090,8 +1094,14 @@ export default function StudentWiseLedgerPage() {
         {showFilters && (
           <Card className="no-print border-0 shadow-md bg-white dark:bg-slate-900">
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div><label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Class</label>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                 <div><label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Academic Year</label>
+                   <Select value={academicYearId || "all"} onValueChange={(v) => setAcademicYearId(v === "all" ? "" : v)}>
+                     <SelectTrigger className="solid-select-trigger"><SelectValue placeholder="All Years" /></SelectTrigger>
+                     <SelectContent className="solid-select-content"><SelectItem value="all">All Years</SelectItem>{academicYearsData?.map((ay: any) => (<SelectItem key={ay.id} value={ay.id}>{ay.year_name || ay.name}</SelectItem>))}</SelectContent>
+                   </Select>
+                 </div>
+                 <div><label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Class</label>
                   <Select value={selectedClass} onValueChange={(v) => { setSelectedClass(v); setSelectedSection("all") }}>
                     <SelectTrigger className="solid-select-trigger"><SelectValue placeholder="All Classes" /></SelectTrigger>
                     <SelectContent className="solid-select-content"><SelectItem value="all">All Classes</SelectItem>{classes.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
