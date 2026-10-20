@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { formatCurrency } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
 
@@ -78,6 +80,8 @@ export default function OutstandingReportPage() {
   const [selectedOverdueLevel, setSelectedOverdueLevel] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(true)
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({
     school_name: "Shapla Kindergarten & Pre-cadet",
@@ -156,8 +160,26 @@ export default function OutstandingReportPage() {
         return
       }
 
+      // ✅ Filter by academic year via students table
+      let filteredSummary = summaryData
+      if (selectedYearId && selectedYearId.trim() !== "") {
+        const supabaseClient = getSupabaseClient()
+        const { data: yearStudents } = await supabaseClient
+          .from("students")
+          .select("id")
+          .eq("academic_year_id", selectedYearId)
+        const yearStudentIds = new Set((yearStudents || []).map((s: any) => s.id))
+        filteredSummary = summaryData.filter((item: any) => yearStudentIds.has(item.student_id))
+      }
+
+      if (filteredSummary.length === 0) {
+        setRecords([])
+        setLoading(false)
+        return
+      }
+
       // 2. 🆕 Get detailed due info from student_fee_dues
-      const studentIds = summaryData.map((s: any) => s.student_id)
+      const studentIds = filteredSummary.map((s: any) => s.student_id)
       const { data: duesData, error: duesError } = await supabase
         .from('student_fee_dues')
         .select('student_id, due_amount, status, due_date, expected_amount, fine_amount, discount_amount, month')
@@ -216,7 +238,7 @@ export default function OutstandingReportPage() {
       const today = new Date()
       
       // 5. Combine data
-      const formattedRecords: OutstandingRecord[] = summaryData.map((item: any) => {
+      const formattedRecords: OutstandingRecord[] = filteredSummary.map((item: any) => {
         const dueDetails = dueMap.get(item.student_id) || {
           overdue_months: 0,
           pending_months: 0,
@@ -281,11 +303,26 @@ export default function OutstandingReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedClass, selectedSection])
+  }, [selectedClass, selectedSection, selectedYearId])
 
   useEffect(() => {
     fetchSchoolInfo()
     fetchClasses()
+  }, [])
+
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) setSelectedYearId(currentYear.id)
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
   }, [])
 
   useEffect(() => {
@@ -482,7 +519,7 @@ export default function OutstandingReportPage() {
         {showFilters && (
           <Card className="dark:bg-slate-900 dark:border-slate-800">
             <CardContent className="pt-5">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="text-xs font-semibold dark:text-slate-400">Class</label>
                   <Select value={selectedClass} onValueChange={(v) => { setSelectedClass(v); setSelectedSection("all") }}>
@@ -519,6 +556,18 @@ export default function OutstandingReportPage() {
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold dark:text-slate-400">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
+                      <SelectItem value="all">All Years</SelectItem>
+                      {activeYears.map((y) => <SelectItem key={y.id} value={y.id}>{y.year_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
