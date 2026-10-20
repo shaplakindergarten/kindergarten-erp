@@ -1,6 +1,7 @@
 // src/lib/api/students.service.ts
 
 import { createClient, getSupabaseClient } from '@/lib/supabase/client'
+import { getOperationalYearId } from '@/lib/api/academic-year-context'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
 // ============================
@@ -56,6 +57,7 @@ export interface StudentFilters {
   class_id?: string
   section_id?: string
   status?: string
+  academic_year_id?: string
   page?: number
   limit?: number
   sort_by?: string
@@ -105,6 +107,7 @@ class StudentService {
       class_id,
       section_id,
       status,
+      academic_year_id,
       page = 1,
       limit = 20,
       sort_by = 'created_at',
@@ -113,14 +116,40 @@ class StudentService {
 
     const offset = (page - 1) * limit
 
+    let resolvedYearId = academic_year_id
+
+    if (!resolvedYearId) {
+      try {
+        const supabase = await this.getSupabase()
+        resolvedYearId = await getOperationalYearId(supabase)
+        console.log(`[getStudents] Resolved operational academic year: ${resolvedYearId}`)
+      } catch (err) {
+        console.error('[getStudents] Could not resolve operational academic year:', err)
+        return {
+          data: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        }
+      }
+    } else {
+      console.log(`[getStudents] Using provided academic_year_id: ${resolvedYearId}`)
+    }
+
     let query = this.getSupabase()
       .from('students')
-      .select(`
+      .select(
+        `
         *,
         class:classes(id, name),
         section:sections(id, name),
         academic_year:academic_years(id, name)
       `, { count: 'exact' })
+
+    if (resolvedYearId) {
+      query = query.eq('academic_year_id', resolvedYearId)
+    }
 
     if (search && search.trim() !== '') {
       query = query.or(
