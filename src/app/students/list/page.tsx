@@ -88,6 +88,8 @@ import {
   Student,
   StudentFilters,
 } from "@/lib/api/students.service";
+import { getAllActiveYears, resolveYearFromParam, type AcademicYearRecord } from "@/lib/api/academic-year-context";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 // Filter Schema
 const filterSchema = z.object({
@@ -150,6 +152,8 @@ function StudentsListContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [isCreatingAccounts, setIsCreatingAccounts] = useState(false);
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
 
   // ✅ Form — সব default value "" বা "all" দিয়ে initialize করা হয়েছে
   const { register, handleSubmit, watch, setValue } = useForm<FilterFormData>({
@@ -174,6 +178,32 @@ function StudentsListContent() {
 
   const debouncedSearch = useDebounce(search, 500);
 
+  // Load academic years & resolve selected year from URL
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    const loadYears = async () => {
+      try {
+        const years = await getAllActiveYears(supabase);
+        setActiveYears(years);
+
+        const yearParam = searchParams.get("year");
+        if (yearParam) {
+          const resolved = await resolveYearFromParam(supabase, yearParam);
+          setSelectedYearId(resolved.id);
+        } else {
+          const currentYear = years.find((y) => y.is_current) ?? years[0];
+          setSelectedYearId(currentYear?.id ?? null);
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err);
+        addToast({ type: "error", title: "Failed to load academic years" });
+      }
+    };
+
+    loadYears();
+  }, []);
+
   // Load Students
   const loadStudents = useCallback(
     async (currentPage: number = page) => {
@@ -184,6 +214,7 @@ function StudentsListContent() {
           class_id: classFilter === "all" ? undefined : classFilter,
           section_id: sectionFilter === "all" ? undefined : sectionFilter,
           status: statusFilter === "all" ? undefined : statusFilter,
+          academic_year_id: selectedYearId ?? undefined,
           page: currentPage,
           limit,
           sort_by: sortBy,
@@ -201,7 +232,7 @@ function StudentsListContent() {
         setLoading(false);
       }
     },
-    [debouncedSearch, classFilter, sectionFilter, statusFilter, sortBy, sortOrder, limit, addToast, page]
+    [debouncedSearch, classFilter, sectionFilter, statusFilter, selectedYearId, sortBy, sortOrder, limit, addToast, page]
   );
 
   // Load stats
@@ -247,8 +278,10 @@ function StudentsListContent() {
   }, []);
 
   useEffect(() => {
-    loadStudents(1);
-  }, [debouncedSearch, classFilter, sectionFilter, statusFilter, sortBy, sortOrder]);
+    if (selectedYearId) {
+      loadStudents(1);
+    }
+  }, [debouncedSearch, classFilter, sectionFilter, statusFilter, sortBy, sortOrder, selectedYearId]);
 
   // Selection Handlers
   const toggleSelectAll = () => {
@@ -337,6 +370,7 @@ function StudentsListContent() {
         class_id: classFilter === "all" ? undefined : classFilter,
         section_id: sectionFilter === "all" ? undefined : sectionFilter,
         status: statusFilter === "all" ? undefined : statusFilter,
+        academic_year_id: selectedYearId ?? undefined,
       };
 
       const result = await exportStudentsCSV(filters);
@@ -492,6 +526,34 @@ function StudentsListContent() {
                   </div>
                 </div>
 
+                {/* Academic Year Filter */}
+                <div className="w-[140px]">
+                  <Select
+                    value={selectedYearId ?? ""}
+                    onValueChange={(v) => {
+                      setSelectedYearId(v);
+                      const params = new URLSearchParams(searchParams.toString());
+                      params.set("year", v);
+                      router.push(`/students/list?${params.toString()}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-full h-8 bg-white/20 backdrop-blur-sm text-white border-white/30 focus:ring-white/30 text-sm">
+                      <SelectValue placeholder="Academic Year" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                      {activeYears.map((y) => (
+                        <SelectItem
+                          key={y.id}
+                          value={y.id}
+                          className="text-gray-900 dark:text-white"
+                        >
+                          {y.year_name} {y.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Class Filter */}
                 <div className="w-[120px]">
                   <Select 
@@ -550,6 +612,10 @@ function StudentsListContent() {
                   setValue("status", "all");
                   setValue("sort_by", "created_at");
                   setValue("sort_order", "desc");
+                  setSelectedYearId(null);
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("year");
+                  router.push(`/students/list?${params.toString()}`);
                   loadStudents(1);
                 }} className="h-8 bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 hover:text-white px-3">
                   <RefreshCw className="h-3.5 w-3.5 mr-1" />
