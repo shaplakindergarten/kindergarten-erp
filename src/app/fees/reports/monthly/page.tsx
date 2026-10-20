@@ -305,42 +305,51 @@ export default function MonthlyReportPage() {
   }, [selectedClass, sections])
 
   // 🆕 Load monthly due data
-  const loadMonthlyDueData = useCallback(async (monthKey: string) => {
-    try {
-      const [year, month] = monthKey.split("-")
-      const startDate = `${year}-${month}-01`
-      const lastDay = new Date(Number(year), Number(month), 0).getDate()
-      const endDate = `${year}-${month}-${lastDay}`
+   // 🆕 Load monthly due data
+   const loadMonthlyDueData = useCallback(async (monthKey: string) => {
+     try {
+       const [year, month] = monthKey.split("-")
+       const startDate = `${year}-${month}-01`
+       const lastDay = new Date(Number(year), Number(month), 0).getDate()
+       const endDate = `${year}-${month}-${lastDay}`
 
-      const { data: dues, error } = await supabase
-        .from('student_fee_dues')
-        .select('student_id, due_amount, status')
-        .gte('due_date', startDate)
-        .lte('due_date', endDate)
-        .gt('due_amount', 0)
+       let duesQuery = supabase
+         .from('student_fee_dues')
+         .select('student_id, due_amount, status')
+         .gte('due_date', startDate)
+         .lte('due_date', endDate)
+         .gt('due_amount', 0)
 
-      if (error) {
-        console.error('Error loading due data:', error)
-        return { total_due: 0, due_students: 0, overdue_students: 0 }
-      }
+       if (selectedAcademicYear && selectedAcademicYear.trim() !== "") {
+         duesQuery = duesQuery.eq('academic_year_id', selectedAcademicYear)
+       }
 
-      const totalDue = dues?.reduce((sum, d) => sum + (d.due_amount || 0), 0) || 0
-      const dueStudents = new Set(dues?.map(d => d.student_id)).size
-      const overdueStudents = dues?.filter(d => d.status === 'overdue').length || 0
+       const { data: dues, error } = await duesQuery
 
-      return { total_due: totalDue, due_students: dueStudents, overdue_students: overdueStudents }
-    } catch (error) {
-      console.error('Error in loadMonthlyDueData:', error)
-      return { total_due: 0, due_students: 0, overdue_students: 0 }
-    }
-  }, [])
+       if (error) {
+         console.error('Error loading due data:', error)
+         return { total_due: 0, due_students: 0, overdue_students: 0 }
+       }
+
+       const totalDue = dues?.reduce((sum, d) => sum + (d.due_amount || 0), 0) || 0
+       const dueStudents = new Set(dues?.map(d => d.student_id)).size
+       const overdueStudents = dues?.filter(d => d.status === 'overdue').length || 0
+
+       return { total_due: totalDue, due_students: dueStudents, overdue_students: overdueStudents }
+     } catch (error) {
+       console.error('Error in loadMonthlyDueData:', error)
+       return { total_due: 0, due_students: 0, overdue_students: 0 }
+     }
+   }, [selectedAcademicYear])
 
   // Load monthly summary data
   const loadMonthlySummary = useCallback(async () => {
     try {
       setLoading(true)
 
-      const payments = await getAllPaymentsWithAllocation()
+      const payments = await getAllPaymentsWithAllocation({
+        academicYearId: selectedAcademicYear || undefined,
+      })
 
       const monthlyMap = new Map()
       const currentYear = new Date().getFullYear()
@@ -446,7 +455,7 @@ export default function MonthlyReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [loadMonthlyDueData])
+   }, [loadMonthlyDueData, selectedAcademicYear])
 
   // Load month details - Updated with due info
   const loadMonthDetails = useCallback(async (monthKey: string) => {
@@ -460,16 +469,23 @@ export default function MonthlyReportPage() {
 
       const payments = await getAllPaymentsWithAllocation({
         dateFrom: startDate,
-        dateTo: endDate
+        dateTo: endDate,
+        academicYearId: selectedAcademicYear || undefined,
       })
 
       // 🆕 Get due data for this month
-      const { data: dues } = await supabase
+      let duesQuery = supabase
         .from('student_fee_dues')
         .select('student_id, due_amount, status')
         .gte('due_date', startDate)
         .lte('due_date', endDate)
         .gt('due_amount', 0)
+
+      if (selectedAcademicYear && selectedAcademicYear.trim() !== "") {
+        duesQuery = duesQuery.eq('academic_year_id', selectedAcademicYear)
+      }
+
+      const { data: dues } = await duesQuery
 
       const dueMap = new Map()
       dues?.forEach(d => {
@@ -563,7 +579,7 @@ export default function MonthlyReportPage() {
   }
   
   const handleAcademicYearChange = (yearId: string) => { 
-    setSelectedAcademicYear(yearId); 
+    setSelectedAcademicYear(yearId === "all" ? "" : yearId); 
     setSelectedMonth(""); 
     setTransactions([]); 
     setFilteredTransactions([]) 
@@ -1103,12 +1119,13 @@ export default function MonthlyReportPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-1 block dark:text-slate-300">Academic Year</label>
-                <Select value={selectedAcademicYear} onValueChange={handleAcademicYearChange}>
+                <Select value={selectedAcademicYear || "all"} onValueChange={handleAcademicYearChange}>
                   <SelectTrigger className="dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200">
                     <School className="h-4 w-4 mr-2 text-indigo-500" />
-                    <SelectValue />
+                    <SelectValue placeholder="All Years" />
                   </SelectTrigger>
                   <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
+                    <SelectItem value="all" className="dark:text-slate-200">All Years</SelectItem>
                     {academicYears.map((year) => (
                       <SelectItem key={year.id} value={year.id} className="dark:text-slate-200">{year.name}</SelectItem>
                     ))}
