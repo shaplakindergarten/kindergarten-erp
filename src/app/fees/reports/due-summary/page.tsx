@@ -40,6 +40,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { formatCurrency } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
 
 const supabase = createClient()
@@ -110,6 +112,9 @@ export default function DueSummaryPage() {
 
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [sections, setSections] = useState<SectionItem[]>([])
+
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState("")
 
   const [filterClass, setFilterClass] = useState("all")
   const [filterSection, setFilterSection] = useState("all")
@@ -215,8 +220,27 @@ export default function DueSummaryPage() {
         return
       }
 
+      // 🆕 Filter by academic year via students table
+      let filteredSummary = summaryData
+      if (selectedYearId && selectedYearId.trim() !== "") {
+        const supabaseClient = getSupabaseClient()
+        const { data: yearStudents } = await supabaseClient
+          .from("students")
+          .select("id")
+          .eq("academic_year_id", selectedYearId)
+
+        const yearStudentIds = new Set((yearStudents || []).map((s: any) => s.id))
+        filteredSummary = summaryData.filter((item: any) => yearStudentIds.has(item.student_id))
+
+        if (filteredSummary.length === 0) {
+          setData([])
+          setLoading(false)
+          return
+        }
+      }
+
       // 2. 🆕 Get additional due details from student_fee_dues
-      const studentIds = summaryData.map((s: any) => s.student_id)
+      const studentIds = filteredSummary.map((s: any) => s.student_id)
       const { data: duesData, error: duesError } = await supabase
         .from('student_fee_dues')
         .select('student_id, month, due_amount, status, due_date, expected_amount, paid_amount')
@@ -266,7 +290,7 @@ export default function DueSummaryPage() {
       })
 
       // 4. Combine data
-      const formattedData: DueSummary[] = summaryData.map((item: any) => {
+      const formattedData: DueSummary[] = filteredSummary.map((item: any) => {
         const dueDetails = dueMap.get(item.student_id) || {
           overdue_months: 0,
           pending_months: 0,
@@ -321,7 +345,22 @@ export default function DueSummaryPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterClass, filterSection])
+  }, [filterClass, filterSection, selectedYearId])
+
+  useEffect(() => {
+    const loadYears = async () => {
+      try {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) setSelectedYearId(currentYear.id)
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
 
   useEffect(() => {
     fetchSchoolInfo()
@@ -702,7 +741,7 @@ export default function DueSummaryPage() {
         {showFilters && (
           <Card className="dark:bg-slate-900 dark:border-slate-800">
             <CardContent className="pt-5">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="text-xs font-semibold dark:text-slate-400">Class</label>
                   <Select value={filterClass} onValueChange={(v) => { setFilterClass(v); setFilterSection("all") }}>
@@ -738,6 +777,18 @@ export default function DueSummaryPage() {
                       <SelectItem value="critical">🔴 Critical</SelectItem>
                       <SelectItem value="warning">🟡 Warning</SelectItem>
                       <SelectItem value="normal">🟠 Normal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold dark:text-slate-400">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 rounded-lg">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                      <SelectItem value="all">All Years</SelectItem>
+                      {activeYears.map((y) => (<SelectItem key={y.id} value={y.id}>{y.year_name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
