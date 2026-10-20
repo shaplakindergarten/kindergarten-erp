@@ -62,6 +62,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { supabase } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { cn, formatCurrency } from "@/lib/utils"
 import { toast } from "sonner"
 import { FeeSummaryResponse, CategoryBreakdown, MonthDetail } from "@/types/fees"
@@ -315,6 +317,8 @@ function ReceiveFeesContent() {
 
   const [filterClass, setFilterClass] = useState<string>("all")
   const [filterSection, setFilterSection] = useState<string>("all")
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState<string>("");
 
   const receiptRef = useRef<HTMLDivElement>(null)
 
@@ -349,13 +353,18 @@ function ReceiveFeesContent() {
   })
 
   const { data: studentsData, isLoading: isStudentsLoading } = useQuery({
-    queryKey: ["students-quick-list"] as const,
+    queryKey: ["students-quick-list", selectedYearId] as const,
     queryFn: async (): Promise<any[]> => {
-      const { data, error } = await supabase.from("students").select("*")
+      let query = supabase.from("students").select("*")
+      if (selectedYearId) {
+        query = query.eq("academic_year_id", selectedYearId)
+      }
+      const { data, error } = await query
       if (error) throw error
       return data || []
     },
     staleTime: 5 * 60 * 1000,
+    enabled: selectedYearId !== "",
   })
 
   const { data: classesData } = useQuery({
@@ -377,6 +386,23 @@ function ReceiveFeesContent() {
     },
     staleTime: 10 * 60 * 1000,
   })
+
+  useEffect(() => {
+    const supabaseClient = getSupabaseClient()
+    const loadYears = async () => {
+      try {
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    }
+    loadYears()
+  }, [])
 
   useEffect(() => {
     if (studentsData) {
@@ -1238,6 +1264,28 @@ function ReceiveFeesContent() {
                 </button>
               )}
             </div>
+
+             <div className="mb-2">
+               <Select
+                 value={selectedYearId ?? ""}
+                 onValueChange={setSelectedYearId}
+               >
+                 <SelectTrigger className="h-8 w-full text-xs">
+                   <SelectValue placeholder="Academic Year" />
+                 </SelectTrigger>
+                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                   {activeYears.map((y) => (
+                     <SelectItem
+                       key={y.id}
+                       value={y.id}
+                       className="text-xs text-gray-900 dark:text-white"
+                     >
+                       {y.year_name} {y.is_current ? "(Current)" : ""}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </div>
 
             <div className="grid grid-cols-2 gap-1.5 mb-2">
               <Select value={filterClass} onValueChange={setFilterClass}>
