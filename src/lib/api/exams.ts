@@ -1,15 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Exam, ExamResult, Subject } from '@/types'
 
-export async function getExams() {
+export async function getExams(academicYearId?: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('exams')
     .select(`
       *,
       academic_year:academic_years(id, name)
     `)
     .order('start_date', { ascending: false })
+
+  if (academicYearId) {
+    query = query.eq('academic_year_id', academicYearId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw error
   return data
@@ -166,13 +172,18 @@ export async function getStudentResults(studentId: string) {
   return Object.values(resultsByExam)
 }
 
-export async function getExamStats() {
+export async function getExamStats(academicYearId?: string) {
   const supabase = await createClient()
   
+  let baseQuery = supabase.from('exams').select('id', { count: 'exact' })
+  if (academicYearId) {
+    baseQuery = baseQuery.eq('academic_year_id', academicYearId)
+  }
+
   const [{ data: total }, { data: completed }, { data: ongoing }] = await Promise.all([
-    supabase.from('exams').select('id', { count: 'exact' }),
-    supabase.from('exams').select('id', { count: 'exact' }).lte('end_date', new Date().toISOString().split('T')[0]),
-    supabase.from('exams').select('id', { count: 'exact' }).lte('start_date', new Date().toISOString().split('T')[0]).gte('end_date', new Date().toISOString().split('T')[0]),
+    baseQuery,
+    baseQuery.eq('end_date', null).lte('end_date', new Date().toISOString().split('T')[0]).gt('end_date', 0),
+    baseQuery.lte('start_date', new Date().toISOString().split('T')[0]).gte('end_date', new Date().toISOString().split('T')[0]),
   ])
 
   const today = new Date().toISOString().split('T')[0]
