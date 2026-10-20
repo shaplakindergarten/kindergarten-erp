@@ -21,9 +21,10 @@ export interface FeeCategory {
   is_active: boolean
   created_at: string
   created_date: string
+  academic_year_id?: string | null
 }
 
-export function useFeeCategories() {
+export function useFeeCategories(academicYearId?: string) {
   const [categories, setCategories] = useState<FeeCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,10 +35,16 @@ export function useFeeCategories() {
       setError(null)
       
       const supabase = getSupabaseClient()
-      const { data, error: supabaseError } = await supabase
+      let query = supabase
         .from("fee_categories")
         .select("*")
         .order("created_at", { ascending: false })
+
+      if (academicYearId && academicYearId.trim() !== "") {
+        query = query.eq("academic_year_id", academicYearId)
+      }
+
+      const { data, error: supabaseError } = await query
 
       if (supabaseError) throw new Error(supabaseError.message)
       
@@ -48,14 +55,15 @@ export function useFeeCategories() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [academicYearId])
 
   const createCategory = useCallback(async (input: { 
     name: string
     amount: number
     frequency?: string
     custom_schedule?: CustomSchedule | null
-    description?: string 
+    description?: string
+    academic_year_id?: string | null
   }) => {
     try {
       const supabase = getSupabaseClient()
@@ -73,6 +81,7 @@ export function useFeeCategories() {
           amount: finalAmount,
           frequency: input.frequency || "monthly",
           custom_schedule: input.frequency === "custom" ? input.custom_schedule : null,
+          academic_year_id: input.academic_year_id || null,
           is_active: true,
         })
         .select()
@@ -98,7 +107,8 @@ export function useFeeCategories() {
       if (updates.amount !== undefined) updateData.amount = updates.amount
       if (updates.frequency !== undefined) updateData.frequency = updates.frequency
       if (updates.custom_schedule !== undefined) updateData.custom_schedule = updates.custom_schedule
-      if (updates.is_active !== undefined) updateData.is_active = updates.is_active
+       if (updates.is_active !== undefined) updateData.is_active = updates.is_active
+      if (updates.academic_year_id !== undefined) updateData.academic_year_id = updates.academic_year_id
       
       const { error } = await supabase
         .from("fee_categories")

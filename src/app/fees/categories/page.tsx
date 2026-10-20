@@ -120,7 +120,7 @@ export default function FeeCategoriesPage() {
     updateCategory,
     toggleActive,
     deleteCategory,
-  } = useFeeCategories()
+  } = useFeeCategories(selectedYearId || undefined)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<FeeCategory | null>(null)
@@ -197,13 +197,14 @@ export default function FeeCategoriesPage() {
         custom_schedule: formData.frequency === "custom" ? formData.custom_schedule : null,
       })
     } else {
-       result = await createCategory({
-        name: formData.name.trim(),
-        amount: amountNum,
-        frequency: formData.frequency,
-        description: formData.description.trim() || undefined,
-        custom_schedule: formData.frequency === "custom" ? formData.custom_schedule : null,
-      })
+        result = await createCategory({
+          name: formData.name.trim(),
+          amount: amountNum,
+          frequency: formData.frequency,
+          description: formData.description.trim() || undefined,
+          custom_schedule: formData.frequency === "custom" ? formData.custom_schedule : null,
+          academic_year_id: selectedYearId || undefined,
+        })
     }
 
     setIsSubmitting(false)
@@ -378,12 +379,13 @@ export default function FeeCategoriesPage() {
             )}
            </div>
 
-          {/* Academic Year selector (disabled - fee_categories has no academic_year_id) */}
-          <Select value={selectedYearId} onValueChange={setSelectedYearId} disabled>
+          {/* Academic Year selector */}
+          <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
             <SelectTrigger className="h-8 w-[170px] text-xs bg-white dark:bg-slate-900 border-border text-foreground rounded-lg flex-shrink-0">
               <SelectValue placeholder="Select Academic Year" />
             </SelectTrigger>
             <SelectContent className="bg-white dark:bg-slate-950 border-border rounded-lg shadow-lg">
+              <SelectItem value="all" className="text-xs text-foreground">All Years</SelectItem>
               {activeYears.map((year) => (
                 <SelectItem key={year.id} value={year.id} className="text-xs text-foreground">
                   {year.year_name}

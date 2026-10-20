@@ -80,6 +80,7 @@ interface FeeCategory {
   frequency: "monthly" | "quarterly" | "yearly" | "one_time"
   description: string | null
   is_active: boolean
+  academic_year_id?: string | null
 }
 
 interface FeeStructureItem {
@@ -992,6 +993,14 @@ export default function FeeStructurePage() {
     return feeCategories.filter((cat) => selectedCategoryIds.has(cat.id))
   }, [feeCategories, selectedCategoryIds])
 
+  // Filter categories by selected academic year for the dropdown
+  const availableCategories = useMemo(() => {
+    if (!academicYearId || academicYearId.trim() === "") {
+      return feeCategories
+    }
+    return feeCategories.filter((cat) => cat.academic_year_id === academicYearId)
+  }, [feeCategories, academicYearId])
+
   const totalPages = Math.ceil(filteredStructures.length / itemsPerPage)
   const paginatedStructures = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage
@@ -1018,15 +1027,15 @@ export default function FeeStructurePage() {
     setClassId(structure.class_id || "")
     setDescription(structure.description || "")
     
-    // FIXED: Filter only existing category IDs
+     // FIXED: Filter only existing category IDs
     const existingCategoryIds = structure.items?.map((item) => item.category_id) || []
     const validCategoryIds = existingCategoryIds.filter(id => 
-      feeCategories.some(cat => cat.id === id)
+      availableCategories.some(cat => cat.id === id)
     )
     setSelectedCategoryIds(new Set(validCategoryIds))
     
     setDialogOpen(true)
-  }, [feeCategories])
+  }, [availableCategories])
 
   // FIXED: Proper functional update for toggleCategory
   const toggleCategory = useCallback((categoryId: string) => {
@@ -1046,13 +1055,11 @@ export default function FeeStructurePage() {
   const handleSelectAll = useCallback((select: boolean) => {
     setFormError("")
     if (select) {
-      // Select all available categories
-      setSelectedCategoryIds(new Set(feeCategories.map(cat => cat.id)))
+      setSelectedCategoryIds(new Set(availableCategories.map(cat => cat.id)))
     } else {
-      // Deselect all
       setSelectedCategoryIds(new Set())
     }
-  }, [feeCategories])
+  }, [availableCategories])
 
   const handleSubmit = useCallback(async () => {
     setFormError("")
@@ -1440,7 +1447,7 @@ export default function FeeStructurePage() {
                   </Badge>
                 </Label>
                 <FeeCategorySelector
-                  categories={feeCategories}
+                  categories={availableCategories}
                   selectedIds={selectedCategoryIds}
                   onToggle={toggleCategory}
                   onSelectAll={handleSelectAll}

@@ -125,6 +125,11 @@ export default function ClassWiseReportPage() {
   const [toDate, setToDate] = useState(today)
   const [selectedClass, setSelectedClass] = useState("all")
   const [selectedSection, setSelectedSection] = useState("all")
+  const [generatedAt, setGeneratedAt] = useState<string>("")
+
+  useEffect(() => {
+    setGeneratedAt(new Date().toLocaleString())
+  }, [])
 
   // =========================================
   // Date Formatting Functions (Fixed: DD-MM-YYYY)
@@ -561,7 +566,7 @@ export default function ClassWiseReportPage() {
         doc.setTextColor(100, 100, 100)
         
         doc.text(
-          `Generated on: ${new Date().toLocaleString()}`,
+          `Generated on: ${generatedAt || "—"}`,
           10,
           202
         )
@@ -1174,7 +1179,7 @@ export default function ClassWiseReportPage() {
 
           {/* PRINT FOOTER - Black & White */}
           <div className="hidden print:block mt-4 pt-2 border-t border-black text-center text-xs">
-            Generated on: {new Date().toLocaleString()}
+            Generated on: {generatedAt || '—'}
           </div>
 
         </div>
