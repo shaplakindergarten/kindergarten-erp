@@ -480,7 +480,7 @@ function ReceiveFeesContent() {
   const fetchDynamicDue = useCallback(async (studentId: string) => {
     try {
       setLoadingDue(true)
-      const result = await fetch(`/api/fees/student-due?student_id=${studentId}`).then((r) => r.json())
+      const result = await fetch(`/api/fees/student-due?student_id=${studentId}${selectedYearId ? `&academic_year_id=${selectedYearId}` : ''}`).then((r) => r.json())
 
       if (result?.success) {
         let categories: CategoryDue[] = []
@@ -707,9 +707,10 @@ function ReceiveFeesContent() {
           paymentMethod,
           receiptNo,
           note: paymentNote,
-          discountAmount: dynamicDue.discount_applied ? dynamicDue.discount : 0,
-          fineAmount: dynamicDue.fine || 0,
-        }),
+           discountAmount: dynamicDue.discount_applied ? dynamicDue.discount : 0,
+           fineAmount: dynamicDue.fine || 0,
+           academic_year_id: selectedYearId,
+         }),
       })
 
       const result = await response.json()
@@ -844,6 +845,7 @@ function ReceiveFeesContent() {
         discountAmount: dynamicDue.discount,
         fineAmount: dynamicDue.fine || 0,
         remainingDue: dynamicDue.remaining_due - totalPayingAmount,
+        academicYear: dynamicDue?.academic_year?.name || null,
       })
 
       toast.success(`${formatCurrency(totalPayingAmount)} ফি জমা সফল হয়েছে!`)
@@ -1137,10 +1139,16 @@ function ReceiveFeesContent() {
                 </td>
               </tr>
               <tr>
+                <td className="border p-1 bg-gray-50">Academic Year</td>
+                <td className="border p-1 font-semibold">{r.academicYear || "N/A"}</td>
                 <td className="border p-1 bg-gray-50">Payment Method</td>
                 <td className="border p-1 capitalize">{r.receipt.paymentMethod}</td>
+              </tr>
+              <tr>
                 <td className="border p-1 bg-gray-50">Guardian</td>
                 <td className="border p-1">{r.student.father_name || "N/A"}</td>
+                <td className="border p-1 bg-gray-50">&nbsp;</td>
+                <td className="border p-1">&nbsp;</td>
               </tr>
             </tbody>
           </table>

@@ -53,7 +53,7 @@ export default function FeeAssignmentsPage() {
     refreshAll,
   } = useFeeAssignments();
 
-  const { data: allStructures = [] } = useFeeStructures();
+  const { data: allStructures = [] } = useFeeStructures(selectedYearId || undefined);
   const { data: classes = [] } = useClasses();
   const { data: sections = [] } = useSections();
 

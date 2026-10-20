@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/client';
 
 const supabase = createClient();
 
-async function fetchFeeStructures() {
-  const { data, error } = await supabase
+async function fetchFeeStructures(academicYearId?: string) {
+  let query = supabase
     .from('fee_structures')
     .select(`
       *,
@@ -22,16 +22,22 @@ async function fetchFeeStructures() {
       )
     `)
     .eq('is_active', true)
-    .order('name', { ascending: true });
+    .order('name', { ascending: true })
+
+  if (academicYearId) {
+    query = query.eq('academic_year_id', academicYearId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw error;
   return data || [];
 }
 
-export function useFeeStructures() {
+export function useFeeStructures(academicYearId?: string) {
   return useQuery({
-    queryKey: ['fee-structures'],
-    queryFn: fetchFeeStructures,
+    queryKey: ['fee-structures', academicYearId],
+    queryFn: () => fetchFeeStructures(academicYearId),
     staleTime: 5 * 60 * 1000,
   });
 }

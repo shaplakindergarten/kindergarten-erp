@@ -24,6 +24,7 @@ export interface ProcessPaymentParams {
   note?: string
   discountAmount?: number
   fineAmount?: number
+  academic_year_id?: string
 }
 
 // ============================================
@@ -32,7 +33,7 @@ export interface ProcessPaymentParams {
 // DO NOT call process_fee_payment RPC manually — that causes double-processing.
 // ============================================
 export async function processPaymentWithRPC(params: ProcessPaymentParams) {
-  const { studentId, totalPaid, paymentMethod, receiptNo, note, discountAmount, fineAmount } = params
+  const { studentId, totalPaid, paymentMethod, receiptNo, note, discountAmount, fineAmount, academic_year_id: providedAcademicYearId } = params
   const supabase = await createClient()
 
   try {
@@ -41,7 +42,34 @@ export async function processPaymentWithRPC(params: ProcessPaymentParams) {
       return { success: false, error: 'Invalid payment data' }
     }
 
-    // --- STEP 2: Insert payment — trigger auto-processes ---
+    // --- STEP 2: Resolve and verify academic_year_id ---
+    const { data: studentData, error: studentError } = await supabase
+      .from('students')
+      .select('academic_year_id')
+      .eq('id', studentId)
+      .single()
+
+    if (studentError || !studentData) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    const studentAcademicYearId = studentData.academic_year_id
+
+    if (!studentAcademicYearId) {
+      return {
+        success: false,
+        error: 'Student has no academic year assigned. Cannot process payment.'
+      }
+    }
+
+    if (providedAcademicYearId && providedAcademicYearId !== studentAcademicYearId) {
+      return {
+        success: false,
+        error: 'Payment year does not match student year.'
+      }
+    }
+
+    // --- STEP 3: Insert payment — trigger auto-processes ---
     const { data: payment, error: paymentError } = await supabase
       .from('fee_payments')
       .insert({
@@ -145,23 +173,11 @@ export async function getStudentDynamicDues(studentId: string) {
   }
 
   // --- STEP 2: Resolve academic_year_id ---
-  let academicYearId = student.academic_year_id
-  if (!academicYearId) {
-    const { data: currentAcademicYear } = await supabase
-      .from('academic_years')
-      .select('id')
-      .eq('is_current', true)
-      .single()
-
-    if (currentAcademicYear) {
-      academicYearId = currentAcademicYear.id
-    }
-  }
-
+  const academicYearId = student.academic_year_id
   if (!academicYearId) {
     return {
       success: false,
-      error: 'No academic year configured',
+      error: 'Student has no academic year assigned. Cannot load dues.',
       dues: []
     }
   }
@@ -315,15 +331,20 @@ export async function getStudentDynamicDues(studentId: string) {
 // ============================================
 // Get pending dues summary for a student
 // ============================================
-export async function getStudentPendingDues(studentId: string) {
+export async function getStudentPendingDues(studentId: string, academicYearId?: string) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('student_fee_dues')
     .select('id, category_id, month, due_amount, status, due_date, fine_amount')
     .eq('student_id', studentId)
     .gt('due_amount', 0)
-    .order('month', { ascending: true })
+
+  if (academicYearId) {
+    query = query.eq('academic_year_id', academicYearId)
+  }
+
+  const { data, error } = await query.order('month', { ascending: true })
 
   if (error) {
     console.error('Error fetching pending dues:', error)

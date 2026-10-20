@@ -267,13 +267,14 @@ export async function getStudentDynamicLedger(studentId: string) {
     // Get advance balance
     let totalAdvance = 0
     const { data: advanceData } = await supabase
-      .from('payment_allocations')
-      .select('amount')
-      .in('allocation_type', ['advance', 'advance_global'])
-      .eq('payment_id', (await supabase.from('fee_payments').select('id').eq('student_id', studentId)).data?.[0]?.id || '')
+      .from('student_fee_advance')
+      .select('amount, remaining_balance')
+      .eq('student_id', studentId)
+      .eq('source_academic_year_id', academicYearId)
+      .in('status', ['pending', 'used'])
 
     if (advanceData) {
-      totalAdvance = advanceData.reduce((sum, a) => sum + (a.amount || 0), 0)
+      totalAdvance = advanceData.reduce((sum, a) => sum + (a.remaining_balance || a.amount || 0), 0)
     }
 
     return {
@@ -378,6 +379,7 @@ async function getDueStudentsFromMonthlyInvoice(filters?: {
   classId?: string
   sectionId?: string
   search?: string
+  academicYearId?: string
 }) {
   try {
     const supabase = await getSupabase()
@@ -409,8 +411,25 @@ async function getDueStudentsFromMonthlyInvoice(filters?: {
       return []
     }
 
+    // v_monthly_invoice view does not expose academic_year_id column.
+    // Apply client-side filter as best-effort when academicYearId is provided.
+    let result = data
+    if (filters?.academicYearId) {
+      const { data: studentYearData } = await supabase
+        .from('students')
+        .select('id, academic_year_id')
+        .in('id', data.map((d: any) => d.student_id))
+
+      const validStudentIds = new Set(
+        (studentYearData || [])
+          .filter((s: any) => s.academic_year_id === filters!.academicYearId)
+          .map((s: any) => s.id)
+      )
+      result = data.filter((d: any) => validStudentIds.has(d.student_id))
+    }
+
     const studentMap = new Map()
-    data.forEach((item: any) => {
+    result.forEach((item: any) => {
       const key = item.student_id
       if (!studentMap.has(key)) {
         studentMap.set(key, {
@@ -478,6 +497,7 @@ async function getDueStudentsFromDuesTable(filters?: {
   classId?: string
   sectionId?: string
   search?: string
+  academicYearId?: string
 }) {
   try {
     const supabase = await getSupabase()
@@ -510,6 +530,9 @@ async function getDueStudentsFromDuesTable(filters?: {
     }
     if (filters?.sectionId) {
       query = query.eq('students.section_id', filters.sectionId)
+    }
+    if (filters?.academicYearId) {
+      query = query.eq('academic_year_id', filters.academicYearId)
     }
 
     const { data, error } = await query
