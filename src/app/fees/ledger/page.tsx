@@ -88,11 +88,12 @@ import {
 } from "@/components/ui/popover"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { formatCurrency, cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns"
 
-const supabase = createClient()
+const supabase = getSupabaseClient()
 
 // ============================================
 // TYPES
@@ -1336,6 +1337,8 @@ export default function FeesLedgerPage() {
   const [limit, setLimit] = useState(15)
   const [currentPage, setCurrentPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState("")
 
   const [stats, setStats] = useState({
     totalPayments: 0,
@@ -1360,9 +1363,15 @@ export default function FeesLedgerPage() {
 
   const filterChips = useMemo(() => {
     const chips: { id: string; label: string }[] = []
-    if (filterClass !== "all") {
+     if (filterClass !== "all") {
       const cls = classes.find((c) => c.id === filterClass)
       chips.push({ id: "class", label: `Class: ${cls?.name || ""}` })
+    }
+    if (selectedYearId) {
+      const yr = activeYears.find((y) => y.id === selectedYearId)
+      if (yr) {
+        chips.push({ id: "year", label: `শিক্ষাবর্ষ: ${yr.year_name}` })
+      }
     }
     if (filterSection !== "all") {
       const sec = sections.find((s) => s.id === filterSection)
@@ -1376,7 +1385,7 @@ export default function FeesLedgerPage() {
       chips.push({ id: "search", label: `Search: "${searchQuery.trim()}"` })
     }
     return chips
-  }, [filterClass, filterSection, filterPaymentMethod, searchQuery, classes, sections])
+  }, [filterClass, filterSection, filterPaymentMethod, searchQuery, classes, sections, selectedYearId, activeYears])
 
   // ═══════════════════════════════════════════════════════════════════
   // ✅ LOAD DATA — WITH student_fee_dues JOIN for due + status
@@ -1386,9 +1395,15 @@ export default function FeesLedgerPage() {
       setLoading(true)
       setError(null)
 
-      const { data: studentsData, error: studentsError } = await supabase
+      let studentQuery = supabase
         .from("students")
         .select(`id, name, student_id, class_roll, contact, father_name, mother_name, blood_group, student_photo_url, class_id, section_id, academic_year_id, status`)
+
+      if (selectedYearId && selectedYearId.trim() !== "") {
+        studentQuery = studentQuery.eq("academic_year_id", selectedYearId)
+      }
+
+      const { data: studentsData, error: studentsError } = await studentQuery
 
       if (studentsError) throw studentsError
 
@@ -1434,6 +1449,26 @@ export default function FeesLedgerPage() {
       if (dateFrom) query = query.gte("payment_date", `${dateFrom}T00:00:00`)
       if (dateTo) query = query.lte("payment_date", `${dateTo}T23:59:59`)
       if (filterPaymentMethod !== "all") query = query.eq("payment_method", filterPaymentMethod)
+
+      // ✅ Filter payments by students in the selected year
+      if (selectedYearId && selectedYearId.trim() !== "") {
+        const studentIdsForYear = Object.keys(studentMap)
+        if (studentIdsForYear.length === 0) {
+          setPayments([])
+          setStats({
+            totalPayments: 0,
+            totalCollected: 0,
+            todayCollected: 0,
+            filteredCollected: 0,
+            totalTransactions: 0,
+            averageCollection: 0,
+            uniqueStudents: 0,
+          })
+          setLoading(false)
+          return
+        }
+        query = query.in("student_id", studentIdsForYear)
+      }
 
       const sortMapping: Record<string, { column: string; ascending: boolean }> = {
         newest: { column: "payment_date", ascending: false },
@@ -1586,7 +1621,7 @@ export default function FeesLedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, filterClass, filterSection, filterPaymentMethod, dateFrom, dateTo, sortBy])
+  }, [searchQuery, filterClass, filterSection, filterPaymentMethod, dateFrom, dateTo, sortBy, selectedYearId])
 
   const applyDateRange = useCallback((range: typeof dateRange) => {
     const today = new Date()
@@ -1645,11 +1680,25 @@ export default function FeesLedgerPage() {
     }
   }, [dateFrom, dateTo, loadData])
 
+  useEffect(() => {
+    const loadYears = async () => {
+       const supabaseClient = getSupabaseClient()
+       const years = await getAllActiveYears(supabaseClient)
+      setActiveYears(years)
+      const currentYear = years.find((y) => y.is_current)
+      if (currentYear && !selectedYearId) {
+        setSelectedYearId(currentYear.id)
+      }
+    }
+    loadYears()
+  }, [])
+
   const resetFilters = () => {
     setSearchQuery("")
     setFilterClass("all")
     setFilterSection("all")
     setFilterPaymentMethod("all")
+    setSelectedYearId("")
     applyDateRange("last30")
     setSortBy("newest")
     setCurrentPage(1)
@@ -1945,6 +1994,7 @@ export default function FeesLedgerPage() {
                       if (chip.id === "class") { setFilterClass("all"); setFilterSection("all") }
                       if (chip.id === "section") setFilterSection("all")
                       if (chip.id === "method") setFilterPaymentMethod("all")
+                      if (chip.id === "year") setSelectedYearId("")
                       if (chip.id === "search") setSearchQuery("")
                       setCurrentPage(1)
                     }}
@@ -1977,6 +2027,15 @@ export default function FeesLedgerPage() {
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">All Classes</SelectItem>
                   {classes.map((c) => <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+               {/* Academic Year */}
+               <Select value={selectedYearId || "all"} onValueChange={(v) => { setSelectedYearId(v === "all" ? "" : v); setCurrentPage(1) }}>
+                 <SelectTrigger className="h-8 text-xs rounded-md"><SelectValue placeholder="শিক্ষাবর্ষ" /></SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all" className="text-xs">All Years</SelectItem>
+                   {activeYears.map((y) => <SelectItem key={y.id} value={y.id} className="text-xs">{y.year_name}</SelectItem>)}
                 </SelectContent>
               </Select>
 
