@@ -39,7 +39,10 @@ export class DueService {
       }
       if (filters.search) queryParams.append('search', filters.search);
       if (filters.min_due) queryParams.append('min_due', filters.min_due.toString());
-      if (filters.max_due) queryParams.append('max_due', filters.max_due.toString());
+       if (filters.max_due) queryParams.append('max_due', filters.max_due.toString());
+       if (filters.academic_year_id && isValidUUID(filters.academic_year_id)) {
+         queryParams.append('academic_year_id', filters.academic_year_id);
+       }
       
       const queryString = queryParams.toString();
       const url = `/api/fees/due${queryString ? `?${queryString}` : ''}`;

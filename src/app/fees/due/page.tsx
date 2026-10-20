@@ -61,6 +61,9 @@ export default function DueListPage() {
     handleSort,
     refresh,
     resetFilters,
+    activeYears,
+    selectedYearId,
+    setSelectedYearId,
     // 📄 Pagination
     currentPage,
     setCurrentPage,
@@ -323,11 +326,14 @@ export default function DueListPage() {
           setMinDueAmount={setMinDueAmount}
           maxDueAmount={maxDueAmount}
           setMaxDueAmount={setMaxDueAmount}
-          uniqueClasses={uniqueClasses}
-          uniqueSections={uniqueSections}
-          totalResults={sortedList.length}
-          onReset={resetFilters}
-        />
+           uniqueClasses={uniqueClasses}
+           uniqueSections={uniqueSections}
+           totalResults={sortedList.length}
+           onReset={resetFilters}
+           activeYears={activeYears}
+           selectedYearId={selectedYearId}
+           setSelectedYearId={setSelectedYearId}
+         />
 
         {/* Table - Show skeleton while loading */}
         {loading ? <TableSkeleton /> : (

@@ -188,7 +188,11 @@ export async function GET(request: Request) {
              sections!inner(name)
            )
          `)
-        .gt('due_amount', 0)
+         .gt('due_amount', 0)
+
+      if (academicYearId && isValidUUID(academicYearId)) {
+        duesQuery = duesQuery.eq('academic_year_id', academicYearId)
+      }
 
       if (studentId && isValidUUID(studentId)) {
         duesQuery = duesQuery.eq('student_id', studentId)

@@ -3,7 +3,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X, Filter, ChevronDown, User, Hash, BookOpen, Users, Phone } from "lucide-react";
+import { Search, X, Filter, ChevronDown, User, Hash, BookOpen, Users, Phone, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +28,14 @@ interface FiltersBarProps {
   uniqueSections: Array<{ id: string; name: string }>;
   totalResults: number;
   onReset: () => void;
-  minDueAmount?: number;
-  maxDueAmount?: number;
-  setMinDueAmount?: (value: number) => void;
-  setMaxDueAmount?: (value: number | undefined) => void;
-}
+   minDueAmount?: number;
+   maxDueAmount?: number;
+   setMinDueAmount?: (value: number) => void;
+   setMaxDueAmount?: (value: number | undefined) => void;
+   activeYears: Array<{ id: string; year_name: string; is_current: boolean }>;
+   selectedYearId: string;
+   setSelectedYearId: (value: string) => void;
+ }
 
 const searchTypes = [
   { value: "name", label: "Student Name", icon: User, placeholder: "Search by student name..." },
@@ -55,15 +58,18 @@ export function FiltersBar({
   uniqueSections = [],
   totalResults,
   onReset,
-  minDueAmount = 0,
-  maxDueAmount,
-  setMinDueAmount,
-  setMaxDueAmount,
-}: FiltersBarProps) {
+   minDueAmount = 0,
+   maxDueAmount,
+   setMinDueAmount,
+   setMaxDueAmount,
+   activeYears = [],
+   selectedYearId,
+   setSelectedYearId,
+ }: FiltersBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchType, setSearchType] = useState("name");
 
-  const hasActiveFilters = searchQuery || selectedClass !== "all" || selectedSection !== "all" || selectedDueLevel !== "all";
+  const hasActiveFilters = searchQuery || selectedClass !== "all" || selectedSection !== "all" || selectedDueLevel !== "all" || selectedYearId !== "";
 
   const getPlaceholder = () => {
     const type = searchTypes.find(t => t.value === searchType);
@@ -77,10 +83,10 @@ export function FiltersBar({
     <div className="space-y-3 sm:space-y-4 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
       
       {/* Row 1: Search, Class, Section, Levels */}
-      <div className="flex flex-col sm:flex-row flex-wrap md:flex-nowrap gap-2 sm:gap-3 items-stretch sm:items-center">
+      <div className="flex flex-col xl:flex-row flex-wrap xl:flex-nowrap gap-2 sm:gap-2.5 items-stretch sm:items-center">
         
         {/* Search Input */}
-        <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
+        <div className="relative flex-1 min-w-0 sm:min-w-[150px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={getPlaceholder()}
@@ -100,8 +106,8 @@ export function FiltersBar({
 
         {/* Class Select */}
         <Select value={selectedClass} onValueChange={setSelectedClass}>
-          <SelectTrigger className="w-full sm:w-[150px] md:w-[180px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <SelectValue placeholder="All Classes" />
+           <SelectTrigger className="w-full sm:w-[120px] md:w-[140px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+             <SelectValue placeholder="All Classes" />
           </SelectTrigger>
           <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
             <SelectItem value="all">All Classes</SelectItem>
@@ -113,8 +119,8 @@ export function FiltersBar({
 
         {/* Section Select */}
         <Select value={selectedSection} onValueChange={setSelectedSection}>
-          <SelectTrigger className="w-full sm:w-[150px] md:w-[180px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <SelectValue placeholder="All Sections" />
+           <SelectTrigger className="w-full sm:w-[120px] md:w-[140px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+             <SelectValue placeholder="All Sections" />
           </SelectTrigger>
           <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
             <SelectItem value="all">All Sections</SelectItem>
@@ -126,8 +132,8 @@ export function FiltersBar({
 
         {/* Due Level Select */}
         <Select value={selectedDueLevel} onValueChange={setSelectedDueLevel}>
-          <SelectTrigger className="w-full sm:w-[160px] md:w-[200px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <SelectValue placeholder="All Levels" />
+           <SelectTrigger className="w-full sm:w-[130px] md:w-[150px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+             <SelectValue placeholder="All Levels" />
           </SelectTrigger>
           <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
             <SelectItem value="all">📊 All Levels</SelectItem>
@@ -136,14 +142,32 @@ export function FiltersBar({
             <SelectItem value="medium">🟡 Medium (৳201-500)</SelectItem>
             <SelectItem value="low">🟢 Low (৳1-200)</SelectItem>
           </SelectContent>
-        </Select>
+         </Select>
 
-        {/* Advanced Toggle + Reset — side by side on mobile */}
-        <div className="flex gap-2 w-full sm:w-auto">
+         {/* Academic Year Select */}
+         <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+           <SelectTrigger className="w-full sm:w-[120px] md:w-[130px] h-10 sm:h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+             <div className="flex items-center gap-2">
+               <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
+               <SelectValue placeholder="All Years" />
+             </div>
+           </SelectTrigger>
+           <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-lg">
+             <SelectItem value="all">All Years</SelectItem>
+             {activeYears.map(year => (
+               <SelectItem key={year.id} value={year.id}>
+                 {year.year_name} {year.is_current ? "(Current)" : ""}
+               </SelectItem>
+             ))}
+           </SelectContent>
+         </Select>
+
+         {/* Advanced Toggle + Reset — side by side on mobile */}
+        <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto flex-shrink-0 min-w-0">
           <Button
             variant={showAdvanced ? "default" : "outline"}
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="gap-2 h-10 sm:h-11 px-3 sm:px-4 flex-1 sm:flex-initial shrink-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+            className="gap-1.5 h-10 sm:h-11 px-2.5 sm:px-3 flex-1 sm:flex-initial shrink-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           >
             <Filter className="h-4 w-4" />
             <span className="hidden sm:inline">Advanced</span>
@@ -154,7 +178,7 @@ export function FiltersBar({
             <Button
               variant="ghost"
               onClick={onReset}
-              className="gap-1 h-10 sm:h-11 px-3 sm:px-4 shrink-0 text-destructive hover:bg-destructive/10"
+              className="gap-1 h-10 sm:h-11 px-2.5 sm:px-3 shrink-0 text-destructive hover:bg-destructive/10"
             >
               <X className="h-4 w-4" />
               <span className="hidden sm:inline">Reset</span>

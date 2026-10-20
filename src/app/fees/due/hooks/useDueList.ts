@@ -6,6 +6,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { dueService } from "../services/dueService";
 import { DueStudent, DueFilters, DueStatsType, SortField, SortOrder } from "../types";
 import { toast } from "sonner";
+import { getOperationalYearId } from '@/lib/api/academic-year-context';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from '@/lib/api/academic-year-context';
 
 // ✅ Updated Due Level Logic (School Fee Structure: Monthly Fee = 400 Taka)
 function getDueLevel(amount: number): string {
@@ -34,7 +37,12 @@ export function useDueList() {
   
   // 📄 Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+   const [pageSize, setPageSize] = useState(10);
+  
+   const [resolvedYearId, setResolvedYearId] = useState<string | null>(null);
+   const [yearLoading, setYearLoading] = useState(true);
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>("");
   
   
   // Refs to prevent multiple calls
@@ -58,7 +66,8 @@ export function useDueList() {
     section_id: selectedSection !== "all" ? selectedSection : undefined,
     min_due: minDueAmount > 0 ? minDueAmount : undefined,
     max_due: maxDueAmount,
-  }), [debouncedSearch, selectedClass, selectedSection, minDueAmount, maxDueAmount]);
+    academic_year_id: selectedYearId || undefined,
+  }), [debouncedSearch, selectedClass, selectedSection, minDueAmount, maxDueAmount, selectedYearId]);
 
   const loadDueList = useCallback(async (silent: boolean = false) => {
     // Prevent multiple simultaneous loads
@@ -137,27 +146,57 @@ export function useDueList() {
         setLoading(false);
       }
     }
-  }, [filters]);
+  }, [filters, resolvedYearId]);
 
-  // Initial load
-  useEffect(() => {
-    isMounted.current = true;
-    loadDueList(false);
-    
-    return () => {
-      isMounted.current = false;
-    };
-  }, [loadDueList]);
+   // Effect 1: load academic years once on mount
+   useEffect(() => {
+     isMounted.current = true;
+     let cancelled = false;
+     (async () => {
+       try {
+         setYearLoading(true);
+         const supabaseClient = getSupabaseClient();
+         const years = await getAllActiveYears(supabaseClient);
+         if (!cancelled) {
+           setActiveYears(years);
+           const currentYear = years.find((y) => y.is_current) ?? years[0];
+           if (currentYear) {
+             setResolvedYearId(currentYear.id);
+             setSelectedYearId(currentYear.id);
+           }
+         }
+       } catch (err) {
+         console.error('❌ Failed to load academic years:', err);
+         if (!cancelled) {
+           toast.error('Cannot determine academic year. Please check configuration.');
+           setLoading(false);
+         }
+       } finally {
+         if (!cancelled) setYearLoading(false);
+       }
+     })();
+     return () => {
+       cancelled = true;
+       isMounted.current = false;
+     };
+   }, []);
 
-  // ✅ Auto-refresh every 60 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing due list...");
-      loadDueList(true);
-    }, 60000);
+   // Effect 2: load due list AFTER year is resolved
+   useEffect(() => {
+     if (yearLoading || !selectedYearId) return;
+     loadDueList(false);
+   }, [loadDueList, selectedYearId, yearLoading]);
 
-    return () => clearInterval(interval);
-  }, [loadDueList]);
+   // ✅ Auto-refresh every 60 seconds
+   useEffect(() => {
+     if (!selectedYearId) return;
+     const interval = setInterval(() => {
+       console.log("🔄 Auto-refreshing due list...");
+       loadDueList(true);
+     }, 60000);
+
+     return () => clearInterval(interval);
+   }, [loadDueList, selectedYearId]);
 
   // ✅ Updated filteredList with new due level logic
   const filteredList = useMemo(() => {
@@ -265,9 +304,13 @@ export function useDueList() {
     setActiveTab("all");
   }, []);
 
-  return {
+   return {
     dueList,
     loading,
+    yearLoading,
+    activeYears,
+    selectedYearId,
+    setSelectedYearId,
     filteredList,
     sortedList,
     // 📄 Pagination

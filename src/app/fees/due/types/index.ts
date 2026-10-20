@@ -37,6 +37,7 @@ export interface DueFilters {
   min_due?: number;
   max_due?: number;
   status?: string;
+  academic_year_id?: string;
 }
 
 // ✅ Updated DueStatsType with correct thresholds for school fee structure
