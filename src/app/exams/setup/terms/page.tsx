@@ -145,12 +145,18 @@ export default function ExamTermsPage() {
     }
   }, [formData.academic_year_id]);
 
-  const fetchTerms = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('exam_terms')
-      .select('*')
-      .order('created_at', { ascending: false });
+   const fetchTerms = useCallback(async () => {
+     setLoading(true);
+     let query = supabase
+       .from('exam_terms')
+       .select('*')
+       .order('created_at', { ascending: false });
+
+     if (formData.academic_year_id) {
+       query = query.eq('academic_year_id', formData.academic_year_id);
+     }
+
+     const { data, error } = await query;
     
     if (error) {
       console.error('Error fetching terms:', error);

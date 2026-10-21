@@ -14,20 +14,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
-  Loader2, 
-  RefreshCw, 
-  AlertCircle,
-  Printer,
-  ArrowLeft,
-  School,
-  Award,
-  XCircle,
-  Trophy,
-  Medal,
-  Star
+   Loader2, 
+   RefreshCw, 
+   AlertCircle,
+   Printer,
+   ArrowLeft,
+   School,
+   Award,
+   XCircle,
+   Trophy,
+   Medal,
+   Star,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 import { getSchoolPrintHeader } from '@/components/print/SchoolPrintHeader';
 
@@ -127,12 +129,16 @@ async function fetchSchoolInfo(): Promise<SchoolInfo | null> {
   };
 }
 
-async function fetchTerms(): Promise<ExamTerm[]> {
-  const { data, error } = await supabase
+async function fetchTerms(academicYearId?: string): Promise<ExamTerm[]> {
+  let termsQuery = supabase
     .from('exam_terms')
     .select('id, name, term_code')
     .eq('result_status', 'published')
     .order('created_at', { ascending: true });
+  if (academicYearId) {
+    termsQuery = termsQuery.eq('academic_year_id', academicYearId);
+  }
+  const { data, error } = await termsQuery;
   
   if (error) {
     console.error('Error fetching terms:', error);
@@ -182,9 +188,12 @@ export default function MeritListPage() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [sections, setSections] = useState<SectionItem[]>([]);
   
-  const [selectedTerm, setSelectedTerm] = useState<string>('');
-  const [selectedClass, setSelectedClass] = useState<string>('all');
-  const [selectedSection, setSelectedSection] = useState<string>('all');
+   const [selectedTerm, setSelectedTerm] = useState<string>('');
+   const [selectedClass, setSelectedClass] = useState<string>('all');
+   const [selectedSection, setSelectedSection] = useState<string>('all');
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [meritList, setMeritList] = useState<MeritStudent[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
@@ -199,7 +208,7 @@ export default function MeritListPage() {
     try {
       const [school, termsData, classesData] = await Promise.all([
         fetchSchoolInfo(),
-        fetchTerms(),
+         fetchTerms(selectedYearId),
         fetchClasses()
       ]);
       
@@ -216,11 +225,37 @@ export default function MeritListPage() {
     } finally {
       setInitialLoad(false);
     }
-  }, [selectedTerm]);
+   }, [selectedTerm, selectedYearId]);
 
-  useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+   useEffect(() => {
+     loadInitialData();
+   }, [loadInitialData]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm('');
+     setSelectedClass('all');
+     setSelectedSection('');
+     setTerms([]);
+     setClasses([]);
+     setSections([]);
+     setMeritList([]);
+   }, [selectedYearId]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -397,7 +432,7 @@ finalMeritList.push({
     } finally {
       setLoading(false);
     }
-  }, [selectedTerm, selectedClass, selectedSection]);
+   }, [selectedTerm, selectedClass, selectedSection, selectedYearId]);
 
   useEffect(() => {
     if (selectedTerm) {
@@ -679,9 +714,26 @@ finalMeritList.push({
         {/* Filters */}
         <Card className="border-none shadow bg-white dark:bg-gray-950 rounded-xl">
           <CardContent className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-gray-600 dark:text-gray-400">Select Term</Label>
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+               <div>
+                 <Label className="text-xs font-bold text-gray-600 dark:text-gray-400">Academic Year</Label>
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="mt-1.5 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 shadow-sm">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg">
+                     <SelectItem value="all" className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+
+               <div>
+                 <Label className="text-xs font-bold text-gray-600 dark:text-gray-400">Select Term</Label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                   <SelectTrigger className="mt-1.5 bg-slate-50 dark:bg-gray-900">
                     <SelectValue placeholder="Select term" />

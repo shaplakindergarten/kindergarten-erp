@@ -36,7 +36,8 @@ import {
   Rocket
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -66,8 +67,10 @@ interface ExamTerm {
 export default function ExamDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
-  const [terms, setTerms] = useState<ExamTerm[]>([]);
+   const [selectedTerm, setSelectedTerm] = useState<string>("");
+   const [terms, setTerms] = useState<ExamTerm[]>([]);
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>("");
   const [stats, setStats] = useState<DashboardStats>({
     total_terms: 0,
     active_terms: 0,
@@ -78,84 +81,117 @@ export default function ExamDashboardPage() {
     pending_submit: 0,
     pending_verify: 0,
     pending_lock: 0,
-  });
+   });
 
-  const fetchTerms = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('exam_terms')
-        .select('*')
-        .order('created_at', { ascending: false });
+   // ✅ Load academic years and default to current
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
 
-      if (error) {
-        console.error('Error fetching terms:', error.message);
-        return;
-      }
+   const fetchTerms = useCallback(async () => {
+     try {
+       let termsQuery = supabase
+         .from('exam_terms')
+         .select('*')
+         .order('created_at', { ascending: false });
 
-      if (data && data.length > 0) {
-        setTerms(data);
-        if (!selectedTerm) {
-          setSelectedTerm(data[0].id);
-        }
-      } else {
-        setTerms([]);
-      }
-    } catch (err) {
-      console.error('Unexpected error:', err);
-    }
-  }, [selectedTerm]);
+       if (selectedYearId) {
+         termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+       }
 
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: termsData } = await supabase
-        .from('exam_terms')
-        .select('id, status, result_status');
+       const { data, error } = await termsQuery;
 
-      const activeTerms = termsData?.filter(t => t.status === 'ongoing').length || 0;
-      const completedTerms = termsData?.filter(t => t.status === 'completed').length || 0;
-      const publishedResults = termsData?.filter(t => t.result_status === 'published').length || 0;
+       if (error) {
+         console.error('Error fetching terms:', error.message);
+         return;
+       }
 
-      const { count: studentsCount } = await supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
+       if (data && data.length > 0) {
+         setTerms(data);
+         if (!selectedTerm) {
+           setSelectedTerm(data[0].id);
+         }
+       } else {
+         setTerms([]);
+       }
+     } catch (err) {
+       console.error('Unexpected error:', err);
+     }
+   }, [selectedTerm, selectedYearId]);
 
-      const { data: pendingMarks } = await supabase
-        .from('student_marks_new')
-        .select('entry_status');
+   const fetchStats = useCallback(async () => {
+     setLoading(true);
+     try {
+       let termsQuery = supabase
+         .from('exam_terms')
+         .select('id, status, result_status');
 
-      const pendingSubmit = pendingMarks?.filter(m => m.entry_status === 'draft').length || 0;
-      const pendingVerify = pendingMarks?.filter(m => m.entry_status === 'submitted').length || 0;
-      const pendingLock = pendingMarks?.filter(m => m.entry_status === 'verified').length || 0;
+       if (selectedYearId) {
+         termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+       }
 
-      const { data: gpaData } = await supabase
-        .from('compiled_results')
-        .select('gpa')
-        .eq('is_published', true);
+       const { data: termsData } = await termsQuery;
 
-      const avgGpa = gpaData && gpaData.length > 0
-        ? gpaData.reduce((sum, r) => sum + (r.gpa || 0), 0) / gpaData.length
-        : 0;
+       const activeTerms = termsData?.filter(t => t.status === 'ongoing').length || 0;
+       const completedTerms = termsData?.filter(t => t.status === 'completed').length || 0;
+       const publishedResults = termsData?.filter(t => t.result_status === 'published').length || 0;
 
-      setStats({
-        total_terms: termsData?.length || 0,
-        active_terms: activeTerms,
-        completed_terms: completedTerms,
-        published_results: publishedResults,
-        total_students: studentsCount || 0,
-        avg_gpa: avgGpa,
-        pending_submit: pendingSubmit,
-        pending_verify: pendingVerify,
-        pending_lock: pendingLock,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+       let studentsQuery = supabase
+         .from('students')
+         .select('*', { count: 'exact', head: true })
+         .eq('status', 'active');
+
+       if (selectedYearId) {
+         studentsQuery = studentsQuery.eq('academic_year_id', selectedYearId);
+       }
+
+       const { count: studentsCount } = await studentsQuery;
+
+       const { data: pendingMarks } = await supabase
+         .from('student_marks_new')
+         .select('entry_status');
+
+       const pendingSubmit = pendingMarks?.filter(m => m.entry_status === 'draft').length || 0;
+       const pendingVerify = pendingMarks?.filter(m => m.entry_status === 'submitted').length || 0;
+       const pendingLock = pendingMarks?.filter(m => m.entry_status === 'verified').length || 0;
+
+       const { data: gpaData } = await supabase
+         .from('compiled_results')
+         .select('gpa')
+         .eq('is_published', true);
+
+       const avgGpa = gpaData && gpaData.length > 0
+         ? gpaData.reduce((sum, r) => sum + (r.gpa || 0), 0) / gpaData.length
+         : 0;
+
+       setStats({
+         total_terms: termsData?.length || 0,
+         active_terms: activeTerms,
+         completed_terms: completedTerms,
+         published_results: publishedResults,
+         total_students: studentsCount || 0,
+         avg_gpa: avgGpa,
+         pending_submit: pendingSubmit,
+         pending_verify: pendingVerify,
+         pending_lock: pendingLock,
+       });
+     } catch (error) {
+       console.error('Error fetching stats:', error);
+       toast.error('Failed to load dashboard data');
+     } finally {
+       setLoading(false);
+     }
+   }, [selectedYearId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -167,7 +203,7 @@ export default function ExamDashboardPage() {
   useEffect(() => {
     fetchTerms();
     fetchStats();
-  }, [fetchTerms, fetchStats]);
+   }, [fetchTerms, fetchStats, selectedYearId]);
 
   const workflowSteps = [
     {
@@ -305,54 +341,112 @@ export default function ExamDashboardPage() {
     );
   }
 
-  if (terms.length === 0) {
-    return (
-      <ResponsiveLayout>
-        <div className="space-y-6">
-          <div className="rounded-3xl bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 p-6 shadow-2xl">
-            <div className="flex flex-col lg:flex-row gap-4 justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                  <BookOpen className="h-8 w-8" />
-                  Exams Dashboard
-                  <Badge className="bg-yellow-400 text-black ml-2">Setup Required</Badge>
-                </h1>
-                <p className="text-emerald-100 mt-2">Configure exam terms to get started</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="bg-white/20 hover:bg-white/30 text-white border-0">
-                  {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                  Refresh
-                </Button>
-              </div>
-            </div>
-          </div>
+   if (terms.length === 0) {
+     const currentYear = activeYears.find((y) => y.is_current);
+     const selectedYearIsCurrent = selectedYearId && currentYear && selectedYearId === currentYear.id;
+     const showYearSwitchMessage = selectedYearId && !selectedYearIsCurrent;
 
-          <Card className="rounded-3xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden bg-white dark:bg-gray-900">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="h-20 w-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
-                <AlertCircle className="h-10 w-10 text-amber-600 dark:text-amber-400" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Exam Terms Found</h2>
-              <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
-                You need to create at least one exam term before using the exam module.
-              </p>
-              <Link href="/exams/setup/terms">
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700">
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Create First Exam Term
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+     return (
+       <ResponsiveLayout>
+         <div className="space-y-6">
+           <div className="rounded-3xl bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 p-6 shadow-2xl">
+             <div className="flex flex-col lg:flex-row gap-4 justify-between">
+               <div>
+                 <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                   <BookOpen className="h-8 w-8" />
+                   Exams Dashboard
+                   <Badge className="bg-yellow-400 text-black ml-2">Setup Required</Badge>
+                 </h1>
+                 <p className="text-emerald-100 mt-2">Configure exam terms to get started</p>
+               </div>
+             <div className="flex flex-wrap items-end gap-3">
+               {/* Academic Year Dropdown */}
+               <div className="w-48">
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="h-9 rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                     <SelectItem value="all" className="text-gray-900 hover:bg-gray-100 cursor-pointer">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               {/* Exam Term Dropdown */}
+               <div className="w-48">
+                 <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={terms.length === 0}>
+                   <SelectTrigger className="h-9 rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="Select Exam Term" />
+                   </SelectTrigger>
+                   <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                     {terms.map((term) => (
+                       <SelectItem key={term.id} value={term.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {term.name} <span className="text-gray-500 text-xs">({term.status})</span>
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="h-9 bg-white/20 hover:bg-white/30 text-white border-0">
+                 {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                 Refresh
+               </Button>
+             </div>
+             </div>
+           </div>
 
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
-            {format(new Date(), "dd MMMM yyyy hh:mm a")}
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
-  }
+           <Card className="rounded-3xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden bg-white dark:bg-gray-900">
+             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+               <div className="h-20 w-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                 <AlertCircle className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+               </div>
+               {showYearSwitchMessage ? (
+                 <>
+                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                     No Exam Terms Found for Selected Year
+                   </h2>
+                   <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
+                     There are no exam terms configured for the selected academic year.
+                   </p>
+                   <Button
+                     onClick={() => {
+                       const year = activeYears.find((y) => y.is_current);
+                       if (year) setSelectedYearId(year.id);
+                     }}
+                     className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                   >
+                     <Calendar className="h-4 w-4 mr-2" />
+                     Switch to Current Year
+                   </Button>
+                 </>
+               ) : (
+                 <>
+                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Exam Terms Found</h2>
+                   <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
+                     You need to create at least one exam term before using the exam module.
+                   </p>
+                   <Link href="/exams/setup/terms">
+                     <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700">
+                       <PlusCircle className="h-4 w-4 mr-2" />
+                       Create First Exam Term
+                     </Button>
+                   </Link>
+                 </>
+               )}
+             </CardContent>
+           </Card>
+
+           <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
+             {format(new Date(), "dd MMMM yyyy hh:mm a")}
+           </div>
+         </div>
+       </ResponsiveLayout>
+     );
+   }
 
   return (
     <ResponsiveLayout>
@@ -368,40 +462,47 @@ export default function ExamDashboardPage() {
               </h1>
               <p className="text-emerald-100 mt-2">Manage exams, marks, and results from one place</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="bg-white/20 hover:bg-white/30 text-white border-0">
-                {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Refresh
-              </Button>
-            </div>
+             <div className="flex flex-wrap items-end gap-3">
+               {/* Academic Year Dropdown */}
+               <div className="w-48">
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="h-9 rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                     <SelectItem value="all" className="text-gray-900 hover:bg-gray-100 cursor-pointer">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               {/* Exam Term Dropdown */}
+               <div className="w-48">
+                 <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={terms.length === 0}>
+                   <SelectTrigger className="h-9 rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="Select Exam Term" />
+                   </SelectTrigger>
+                   <SelectContent className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                     {terms.map((term) => (
+                       <SelectItem key={term.id} value={term.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {term.name} <span className="text-gray-500 text-xs">({term.status})</span>
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="h-9 bg-white/20 hover:bg-white/30 text-white border-0">
+                 {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                 Refresh
+               </Button>
+             </div>
           </div>
         </div>
 
-        {/* Term Selector Card */}
-        <Card className="border-0 shadow-lg rounded-3xl bg-gradient-to-r from-slate-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-          <CardContent className="p-6">
-            <div className="max-w-md">
-              <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Filter by Exam Term
-              </Label>
-              <Select value={selectedTerm} onValueChange={setSelectedTerm}>
-                <SelectTrigger className="w-full rounded-xl border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm">
-                  <SelectValue placeholder="Select Exam Term" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg">
-                  {terms.map((term) => (
-                    <SelectItem key={term.id} value={term.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                      {term.name} <span className="text-gray-500 dark:text-gray-400 text-xs">({term.status})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats Cards */}
+         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((card, idx) => (
             <Card key={idx} className={`rounded-2xl border-0 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br ${card.gradient}`}>

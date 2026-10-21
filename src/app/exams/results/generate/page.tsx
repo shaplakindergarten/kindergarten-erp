@@ -18,7 +18,8 @@ import {
 import { Loader2, CheckCircle, TrendingUp, ArrowLeft, RefreshCw, School, Users } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 
 const supabase = createClient();
 
@@ -71,22 +72,48 @@ export default function GenerateResultPage() {
   const [terms, setTerms] = useState<ExamTerm[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
-  const [selectedTerm, setSelectedTerm] = useState<string>('');
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSection, setSelectedSection] = useState<string>('');
+   const [selectedTerm, setSelectedTerm] = useState<string>('');
+   const [selectedClass, setSelectedClass] = useState<string>('');
+   const [selectedSection, setSelectedSection] = useState<string>('');
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
 
-  // Load filters data
-  useEffect(() => {
-    const loadFilters = async () => {
-      const [termsRes, classesRes] = await Promise.all([
-        supabase.from('exam_terms').select('id, name').order('created_at'),
-        supabase.from('classes').select('id, name').order('numeric_order')
-      ]);
-      if (termsRes.data) setTerms(termsRes.data);
-      if (classesRes.data) setClasses(classesRes.data);
-    };
-    loadFilters();
-  }, []);
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+
+   // Load filters data
+   useEffect(() => {
+     const loadFilters = async () => {
+       let termsQuery = supabase
+         .from('exam_terms')
+         .select('id, name')
+         .order('created_at');
+
+       if (selectedYearId) {
+         termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+       }
+
+       const [termsRes, classesRes] = await Promise.all([
+         termsQuery,
+         supabase.from('classes').select('id, name').order('numeric_order')
+       ]);
+       if (termsRes.data) setTerms(termsRes.data);
+       if (classesRes.data) setClasses(classesRes.data);
+     };
+     loadFilters();
+   }, [selectedYearId]);
 
   // Load sections when class changes
   useEffect(() => {
@@ -219,9 +246,26 @@ export default function GenerateResultPage() {
         {/* Filters Section */}
         <Card>
           <CardContent className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-sm font-medium mb-2 block">Exam Term</Label>
+             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+               <div>
+                 <Label className="text-sm font-medium mb-2 block">Academic Year</Label>
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger>
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="all">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id}>
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+
+               <div>
+                 <Label className="text-sm font-medium mb-2 block">Exam Term</Label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select term" />

@@ -40,20 +40,22 @@ import {
   Users,
   BookOpen,
   CheckCircle,
-  Clock,
-  ShieldCheck,
-  ArrowLeft,
-  School,
-  Zap,
-  Eye,
-  Layers,
-  ChevronRight,
+   Clock,
+   ShieldCheck,
+   ArrowLeft,
+   School,
+   Zap,
+   Eye,
+   Layers,
+   Calendar,
+   ChevronRight,
   ChevronDown,
   Wifi,
   WifiOff
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 
 const supabase = createClient();
@@ -362,11 +364,14 @@ export default function MarksLockPage() {
   const [, startTransition] = useTransition();
   
   // Selection state for dropdowns
-  const [terms, setTerms] = useState<ExamTerm[]>([]);
-  const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [sectionsLoaded, setSectionsLoaded] = useState(false);
-  const [subjects, setSubjects] = useState<ExamSubject[]>([]);
+   const [terms, setTerms] = useState<ExamTerm[]>([]);
+   const [classes, setClasses] = useState<ClassItem[]>([]);
+   const [sections, setSections] = useState<Section[]>([]);
+   const [sectionsLoaded, setSectionsLoaded] = useState(false);
+   const [subjects, setSubjects] = useState<ExamSubject[]>([]);
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   // Refs for maps and abort controllers
   const termsMapRef = useRef<Map<string, ExamTerm>>(new Map());
@@ -423,11 +428,15 @@ export default function MarksLockPage() {
   );
 
   // Fetch terms
-  const fetchTerms = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('exam_terms')
-      .select('id, name')
-      .order('created_at');
+   const fetchTerms = useCallback(async () => {
+     let termsQuery = supabase
+       .from('exam_terms')
+       .select('id, name')
+       .order('created_at');
+     if (selectedYearId) {
+       termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+     }
+     const { data, error } = await termsQuery;
     
     if (error) {
       console.error('Error fetching terms:', error);
@@ -440,10 +449,10 @@ export default function MarksLockPage() {
       data.forEach(t => map.set(t.id, t));
       termsMapRef.current = map;
     }
-  }, []);
+   }, [selectedYearId]);
 
-  // Fetch classes
-  const fetchClasses = useCallback(async () => {
+   // Fetch classes
+   const fetchClasses = useCallback(async () => {
     const { data, error } = await supabase
       .from('classes')
       .select('id, name')
@@ -534,39 +543,41 @@ export default function MarksLockPage() {
       return studentIdsCacheRef.current.get(cacheKey)!;
     }
     
-    const { data, error } = await supabase
-      .from('students')
-      .select('id')
-      .eq('status', 'active')
-      .eq('class_id', classId)
-      .eq('section_id', sectionId);
-    
-    if (error) {
-      console.error('Error fetching section students:', error);
-      return [];
-    }
-    
-    const studentIds = data?.map(s => s.id) || [];
-    studentIdsCacheRef.current.set(cacheKey, studentIds);
-    return studentIds;
-  }, []);
+     const { data, error } = await supabase
+       .from('students')
+       .select('id')
+       .eq('status', 'active')
+       .eq('class_id', classId)
+       .eq('section_id', sectionId)
+       .eq('academic_year_id', selectedYearId);
+   
+     if (error) {
+       console.error('Error fetching section students:', error);
+       return [];
+     }
+   
+     const studentIds = data?.map(s => s.id) || [];
+     studentIdsCacheRef.current.set(cacheKey, studentIds);
+     return studentIds;
+   }, [selectedYearId]);
 
   // Fetch students for a subject
   const fetchSubjectStudents = useCallback(async (subjectId: string, studentIds: string[]) => {
     if (studentIds.length === 0) return [];
     
 const { data: studentsData, error: studentsError } = await supabase
-       .from('students')
-       .select('id, name, class_roll, class_id, section_id')
-       .eq('status', 'active')
-       .in('id', studentIds)
-       .order('class_roll');
+        .from('students')
+        .select('id, name, class_roll, class_id, section_id')
+        .eq('status', 'active')
+        .eq('academic_year_id', selectedYearId)
+        .in('id', studentIds)
+        .order('class_roll');
     
     if (studentsError) throw studentsError;
     return studentsData || [];
-  }, []);
+   }, [selectedYearId]);
 
-  // Fetch marks for a subject
+   // Fetch marks for a subject
   const fetchSubjectMarksData = useCallback(async (subjectId: string, studentIds: string[]) => {
     if (studentIds.length === 0) return [];
     
@@ -995,11 +1006,39 @@ const { data: studentsData, error: studentsError } = await supabase
     };
   }, []);
 
-  // Load initial data
-  useEffect(() => {
-    fetchTerms();
-    fetchClasses();
-  }, [fetchTerms, fetchClasses]);
+   // Load initial data
+   useEffect(() => {
+     fetchTerms();
+     fetchClasses();
+   }, [fetchTerms, fetchClasses, selectedYearId]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     dispatch({ type: 'SET_SELECTED_TERM', payload: undefined });
+     dispatch({ type: 'SET_SELECTED_CLASS', payload: undefined });
+     dispatch({ type: 'SET_SELECTED_SECTION', payload: undefined });
+     dispatch({ type: 'RESET_SUMMARY' });
+     setSections([]);
+     setSectionsLoaded(false);
+     setSubjects([]);
+     marksCacheRef.current.clear();
+     studentIdsCacheRef.current.clear();
+   }, [selectedYearId]);
 
   // Update ref maps
   useEffect(() => {
@@ -1132,11 +1171,30 @@ const { data: studentsData, error: studentsError } = await supabase
         {/* Filters Section */}
         <Card className="border-0 shadow-lg rounded-3xl bg-gradient-to-r from-slate-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
-                  <School className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  Exam Term
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+               <div>
+                 <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
+                   <Calendar className="h-4 w-4 text-red-600 dark:text-red-400" />
+                   Academic Year
+                 </Label>
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="w-full rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="max-h-[300px] overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+                     <SelectItem value="all" className="text-gray-900 hover:bg-gray-100 cursor-pointer">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div>
+                 <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
+                   <School className="h-4 w-4 text-red-600 dark:text-red-400" />
+                   Exam Term
                 </Label>
                 <Select value={state.selectedTerm ?? ""} onValueChange={(val) => dispatch({ type: 'SET_SELECTED_TERM', payload: val || undefined })}>
                   <SelectTrigger className="w-full rounded-xl border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm">

@@ -46,12 +46,14 @@ import {
   RefreshCw,
   BookOpen,
   AlertCircle,
-  ArrowLeft,
-  Edit,
-  Copy,
+   ArrowLeft,
+   Edit,
+   Copy,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 
 const supabase = createClient();
@@ -124,7 +126,10 @@ export default function SubjectAssignmentPage() {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedSection, setSelectedSection] = useState<string>("all");
   
-  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
+   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -166,21 +171,25 @@ export default function SubjectAssignmentPage() {
     }
   }, []);
 
-  const fetchTerms = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('exam_terms')
-        .select('id, name')
-        .order('created_at');
-      if (error) throw error;
-      if (data) setTerms(data);
-      if (data && data.length > 0 && !selectedTerm) {
-        setSelectedTerm(data[0].id);
-      }
-    } catch (err) {
-      console.error('Error fetching terms:', err);
-    }
-  }, [selectedTerm]);
+   const fetchTerms = useCallback(async () => {
+     try {
+       let termsQuery = supabase
+         .from('exam_terms')
+         .select('id, name')
+         .order('created_at');
+       if (selectedYearId) {
+         termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+       }
+       const { data, error } = await termsQuery;
+       if (error) throw error;
+       if (data) setTerms(data);
+       if (data && data.length > 0 && !selectedTerm) {
+         setSelectedTerm(data[0].id);
+       }
+     } catch (err) {
+       console.error('Error fetching terms:', err);
+     }
+   }, [selectedTerm, selectedYearId]);
 
   const fetchClasses = useCallback(async () => {
     try {
@@ -627,17 +636,43 @@ export default function SubjectAssignmentPage() {
     }
   }, [selectedClass, fetchSections]);
 
-  useEffect(() => {
-    fetchTerms();
-    fetchClasses();
-    fetchSubjects();
-  }, []);
+   useEffect(() => {
+     fetchTerms();
+     fetchClasses();
+     fetchSubjects();
+   }, [selectedYearId]);
 
   useEffect(() => {
     if (selectedTerm && selectedClass) {
       fetchExamSubjects();
     }
-  }, [selectedTerm, selectedClass, selectedSection, fetchExamSubjects]);
+   }, [selectedTerm, selectedClass, selectedSection, selectedYearId, fetchExamSubjects]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm("");
+     setSelectedClass("");
+     setTerms([]);
+     setClasses([]);
+     setSections([]);
+     setExamSubjects([]);
+     setSelectedSubjectIds([]);
+   }, [selectedYearId]);
 
   const needsSelection = !selectedTerm || !selectedClass;
 
@@ -664,8 +699,24 @@ export default function SubjectAssignmentPage() {
               </h1>
               <p className="text-emerald-100 mt-2">Assign subjects to exam terms and classes</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button 
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 dark:text-gray-300" />
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 pl-8 pr-3 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg">
+                      <SelectItem value="all" className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
                 onClick={() => {
                   resetSubjectForm();
                   setSubjectDialogOpen(true);

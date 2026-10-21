@@ -28,15 +28,17 @@ import {
   Loader2, 
   RefreshCw, 
   AlertCircle,
-  Send,
-  Users,
-  BookOpen,
-  ArrowLeft,
-  School,
-  Layers
+   Send,
+   Users,
+   BookOpen,
+   ArrowLeft,
+   School,
+   Layers,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 
 const supabase = createClient();
@@ -129,9 +131,12 @@ export default function MarksSubmitPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionsLoaded, setSectionsLoaded] = useState(false);
   
-  const [selectedTerm, setSelectedTerm] = useState<string | undefined>(undefined);
-  const [selectedClass, setSelectedClass] = useState<string | undefined>(undefined);
-  const [selectedSection, setSelectedSection] = useState<string | undefined>(undefined);
+   const [selectedTerm, setSelectedTerm] = useState<string | undefined>(undefined);
+   const [selectedClass, setSelectedClass] = useState<string | undefined>(undefined);
+   const [selectedSection, setSelectedSection] = useState<string | undefined>(undefined);
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [summary, setSummary] = useState<SubmitSummary | null>(null);
   
@@ -152,11 +157,15 @@ export default function MarksSubmitPage() {
   }, []);
 
   // Fetch terms
-  const fetchTerms = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('exam_terms')
-      .select('id, name')
-      .order('created_at');
+   const fetchTerms = useCallback(async () => {
+     let termsQuery = supabase
+       .from('exam_terms')
+       .select('id, name')
+       .order('created_at');
+     if (selectedYearId) {
+       termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+     }
+     const { data, error } = await termsQuery;
     
     if (error) {
       console.error('Error fetching terms:', error);
@@ -170,10 +179,10 @@ export default function MarksSubmitPage() {
       data.forEach(t => map.set(t.id, t));
       termsMapRef.current = map;
     }
-  }, []);
+   }, [selectedYearId]);
 
-  // Fetch classes
-  const fetchClasses = useCallback(async () => {
+   // Fetch classes
+   const fetchClasses = useCallback(async () => {
     const { data, error } = await supabase
       .from('classes')
       .select('id, name')
@@ -230,20 +239,21 @@ export default function MarksSubmitPage() {
       return [];
     }
     
-    const { data, error } = await supabase
-      .from('students')
-      .select('id')
-      .eq('status', 'active')
-      .eq('class_id', classId)
-      .eq('section_id', sectionId);
+     const { data, error } = await supabase
+       .from('students')
+       .select('id')
+       .eq('status', 'active')
+       .eq('class_id', classId)
+       .eq('section_id', sectionId)
+       .eq('academic_year_id', selectedYearId);
     
-    if (error) {
-      console.error('Error fetching section students:', error);
-      return [];
-    }
+     if (error) {
+       console.error('Error fetching section students:', error);
+       return [];
+     }
     
-    return data?.map(s => s.id) || [];
-  }, []);
+     return data?.map(s => s.id) || [];
+   }, [selectedYearId]);
 
   // Check abort helper
   const checkAbort = useCallback((controller: AbortController | null): boolean => {
@@ -463,7 +473,7 @@ export default function MarksSubmitPage() {
         setLoading(false);
       }
     }
-  }, [selectedTerm, selectedClass, selectedSection, getSectionStudentIds, checkAbort, resetSummary]);
+   }, [selectedTerm, selectedClass, selectedSection, selectedYearId, getSectionStudentIds, checkAbort, resetSummary]);
 
   // Submit marks for selected subjects with batch support for large student lists
   const handleSubmit = async () => {
@@ -577,11 +587,39 @@ export default function MarksSubmitPage() {
     };
   }, []);
 
-  // Load initial data
-  useEffect(() => {
-    fetchTerms();
-    fetchClasses();
-  }, [fetchTerms, fetchClasses]);
+   // Load initial data
+   useEffect(() => {
+     fetchTerms();
+     fetchClasses();
+   }, [fetchTerms, fetchClasses, selectedYearId]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm(undefined);
+     setSelectedClass(undefined);
+     setSelectedSection(undefined);
+     setTerms([]);
+     setClasses([]);
+      setSections([]);
+      setSectionsLoaded(false);
+      setSummary(null);
+     setDataState('idle');
+   }, [selectedYearId]);
 
   // Update ref maps when state changes
   useEffect(() => {
@@ -720,8 +758,28 @@ export default function MarksSubmitPage() {
         {/* Filters Section */}
         <Card className="border-0 shadow-lg rounded-3xl bg-gradient-to-r from-slate-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+               <div>
+                 <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
+                   <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                   Academic Year
+                 </Label>
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="w-full rounded-xl border-gray-300 bg-white text-gray-900 shadow-sm">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="max-h-[300px] overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+                     <SelectItem value="all" className="text-gray-900 hover:bg-gray-100 cursor-pointer">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 hover:bg-gray-100 cursor-pointer">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+
+               <div>
                 <Label className="mb-2 block text-gray-700 dark:text-gray-200 font-medium flex items-center gap-2">
                   <School className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   Exam Term

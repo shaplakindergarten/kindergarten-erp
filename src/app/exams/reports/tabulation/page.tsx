@@ -43,7 +43,8 @@ import {
   Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import * as XLSX from 'xlsx';
 import { getSchoolPrintHeader } from '@/components/print/SchoolPrintHeader';
 
@@ -273,9 +274,13 @@ async function fetchSchoolInfo(): Promise<SchoolInfo | null> {
   };
 }
 
-async function fetchTermsAndClasses() {
+async function fetchTermsAndClasses(academicYearId?: string) {
+  let termsQuery = supabase.from('exam_terms').select('id, name, result_status').order('created_at');
+  if (academicYearId) {
+    termsQuery = termsQuery.eq('academic_year_id', academicYearId);
+  }
   const [termsRes, classesRes] = await Promise.all([
-    supabase.from('exam_terms').select('id, name, result_status').order('created_at'),
+    termsQuery,
     supabase.from('classes').select('id, name, numeric_order').order('numeric_order')
   ]);
   
@@ -382,6 +387,9 @@ export default function TabulationSheetPage() {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState<string>('');
+  
   const [tabulationData, setTabulationData] = useState<TabulationResult[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isPublished, setIsPublished] = useState(false);
@@ -449,30 +457,30 @@ const filteredData = useMemo(() => {
 
   // ===== Data Loading Functions =====
   
-  const loadInitialData = useCallback(async () => {
-    try {
-      const [academicYearId, school, { terms: termsData, classes: classesData }] = await Promise.all([
-        fetchAcademicYearId(),
-        fetchSchoolInfo(),
-        fetchTermsAndClasses()
-      ]);
-      
-      setTerms(termsData);
-      setClasses(classesData);
-      
-      if (school) setSchoolInfo(school);
-      
-      if (academicYearId) {
-        const settings = await fetchPrintSettings(academicYearId);
-        if (settings) setPrintSettings(settings);
-      }
-    } catch (error) {
-      console.error('Error loading initial data:', error);
-      toast.error('Failed to load initial data');
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
+   const loadInitialData = useCallback(async (yearId?: string) => {
+     try {
+       const [academicYearId, school, { terms: termsData, classes: classesData }] = await Promise.all([
+         fetchAcademicYearId(),
+         fetchSchoolInfo(),
+         fetchTermsAndClasses(yearId)
+       ]);
+       
+       setTerms(termsData);
+       setClasses(classesData);
+       
+       if (school) setSchoolInfo(school);
+       
+       if (academicYearId) {
+         const settings = await fetchPrintSettings(academicYearId);
+         if (settings) setPrintSettings(settings);
+       }
+     } catch (error) {
+       console.error('Error loading initial data:', error);
+       toast.error('Failed to load initial data');
+     } finally {
+       setInitialLoad(false);
+     }
+   }, []);
   
   const loadTabulationData = useCallback(async () => {
     if (!selectedTerm || !selectedClass || !selectedSection) return;
@@ -518,10 +526,10 @@ const filteredData = useMemo(() => {
     } finally {
       setLoading(false);
     }
-  }, [selectedTerm, selectedClass, selectedSection]);
-  
-  const loadSectionsForClass = useCallback(async () => {
-    if (!selectedClass) {
+   }, [selectedTerm, selectedClass, selectedSection, selectedYearId]);
+   
+   const loadSectionsForClass = useCallback(async () => {
+     if (!selectedClass) {
       setSections([]);
       return;
     }
@@ -531,9 +539,36 @@ const filteredData = useMemo(() => {
   
   // ===== Effects =====
   
-  useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm('');
+     setSelectedClass('');
+     setSelectedSection('');
+     setSections([]);
+     setTerms([]);
+     setClasses([]);
+     setTabulationData([]);
+     setSubjects([]);
+     setIsPublished(false);
+   }, [selectedYearId]);
+   
+   useEffect(() => {
+     loadInitialData(selectedYearId);
+   }, [loadInitialData, selectedYearId]);
   
   useEffect(() => {
     loadSectionsForClass();
@@ -925,9 +960,25 @@ const filteredData = useMemo(() => {
             <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <span className="font-medium text-gray-700 dark:text-gray-300 text-sm">Filter Options</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Exam Term</Label>
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+             <div>
+               <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Academic Year</Label>
+               <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                 <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                   <SelectValue placeholder="All Years" />
+                 </SelectTrigger>
+                 <SelectContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 max-h-[250px] overflow-y-auto">
+                   <SelectItem value="all" className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">All Years</SelectItem>
+                   {activeYears.filter(y => y.id).map(year => (
+                     <SelectItem key={year.id} value={year.id} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                       {year.year_name} {year.is_current ? "(Current)" : ""}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </div>
+             <div>
+               <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Exam Term</Label>
               <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                 <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                   <SelectValue placeholder="Select term" />

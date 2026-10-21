@@ -33,7 +33,8 @@ import {
   EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 
 const supabase = createClient();
@@ -369,6 +370,8 @@ export default function MarksEntryPage() {
   const [selectedTerm, setSelectedTerm] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedSection, setSelectedSection] = useState<string>("");
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState<string>("");
   
   // Filter states
   const [showOnlyAbsent, setShowOnlyAbsent] = useState(false);
@@ -416,12 +419,16 @@ export default function MarksEntryPage() {
     return editedStateRef.current[key]?.absent ?? marksStateRef.current[key]?.absent ?? false;
   }, []);
 
-  // Fetch terms
-  const fetchTerms = useCallback(async () => {
-    const { data } = await supabase.from('exam_terms').select('id, name').order('created_at');
-    if (data) setTerms(data);
-    if (data && data.length > 0 && !selectedTerm) setSelectedTerm(data[0].id);
-  }, [selectedTerm]);
+   // Fetch terms
+   const fetchTerms = useCallback(async () => {
+     let termsQuery = supabase.from('exam_terms').select('id, name').order('created_at');
+     if (selectedYearId) {
+       termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+     }
+     const { data } = await termsQuery;
+     if (data) setTerms(data);
+     if (data && data.length > 0 && !selectedTerm) setSelectedTerm(data[0].id);
+   }, [selectedTerm, selectedYearId]);
 
   const fetchClasses = useCallback(async () => {
     const { data } = await supabase.from('classes').select('id, name').order('numeric_order');
@@ -455,10 +462,10 @@ export default function MarksEntryPage() {
       })).sort((a, b) => a.sort_order - b.sort_order);
       setSubjects(formattedSubjects);
       
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('id, name, name_bn, class_roll, student_id, father_name, father_name_bn, student_photo_url')
-        .eq('status', 'active').eq('class_id', selectedClass).eq('section_id', selectedSection).order('class_roll');
+       const { data: studentsData, error: studentsError } = await supabase
+         .from('students')
+         .select('id, name, name_bn, class_roll, student_id, father_name, father_name_bn, student_photo_url')
+         .eq('status', 'active').eq('class_id', selectedClass).eq('section_id', selectedSection).eq('academic_year_id', selectedYearId).order('class_roll');
       
       if (studentsError) {
         console.error('Students fetch error:', studentsError);
@@ -673,7 +680,20 @@ const filteredStudents = useMemo(() => {
     toast.success('All marks saved successfully');
   };
 
-  useEffect(() => { fetchTerms(); fetchClasses(); }, []);
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   useEffect(() => { fetchTerms(); fetchClasses(); }, [selectedYearId]);
   useEffect(() => { if (selectedClass) fetchSections(selectedClass); }, [selectedClass]);
   useEffect(() => { if (selectedTerm && selectedClass && selectedSection) fetchAllData(); }, [selectedTerm, selectedClass, selectedSection]);
   useEffect(() => { return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); }; }, []);
@@ -715,9 +735,25 @@ const filteredStudents = useMemo(() => {
         {/* Filters */}
         <Card className="border-0 shadow-lg rounded-2xl bg-white dark:bg-gray-900">
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <div>
-                <Label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Exam Term</Label>
+             <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+               <div>
+                 <Label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Academic Year</Label>
+                 <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                   <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+                     <SelectValue placeholder="All Years" />
+                   </SelectTrigger>
+                   <SelectContent className="max-h-[300px] overflow-y-auto bg-white dark:bg-gray-800">
+                     <SelectItem value="all" className="text-gray-900 dark:text-gray-100 text-sm">All Years</SelectItem>
+                     {activeYears.filter(y => y.id).map(year => (
+                       <SelectItem key={year.id} value={year.id} className="text-gray-900 dark:text-gray-100 text-sm">
+                         {year.year_name} {year.is_current ? "(Current)" : ""}
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div>
+                 <Label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Exam Term</Label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                   <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">
                     <SelectValue placeholder="Select Term" />

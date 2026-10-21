@@ -37,6 +37,9 @@ export async function getExamById(id: string) {
 }
 
 export async function createExam(exam: Partial<Exam>) {
+  if (!exam.academic_year_id) {
+    throw new Error('academic_year_id is required for createExam')
+  }
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('exam_terms')
@@ -55,6 +58,9 @@ export async function createExam(exam: Partial<Exam>) {
 }
 
 export async function updateExam(id: string, exam: Partial<Exam>) {
+  if (!exam.academic_year_id) {
+    throw new Error('academic_year_id is required for updateExam')
+  }
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('exam_terms')
@@ -97,19 +103,20 @@ export async function getSubjects() {
   return data
 }
 
-export async function getExamResults(filters?: { examId?: string; studentId?: string; classId?: string }) {
+export async function getExamResults(filters?: { examId?: string; studentId?: string; classId?: string; academicYearId?: string }) {
   const supabase = await createClient()
   let query = supabase
     .from('exam_results')
     .select(`
       *,
-      exam:exams(id, name, type),
+      exam:exams(id, name, type, academic_year_id),
       student:students(id, name, admission_no, class:classes(id, name), section:sections(id, name)),
       subject:subjects(id, name)
     `)
 
   if (filters?.examId) query = query.eq('exam_id', filters.examId)
   if (filters?.studentId) query = query.eq('student_id', filters.studentId)
+  if (filters?.academicYearId) query = query.eq('exam.academic_year_id', filters.academicYearId)
 
   const { data, error } = await query
   if (error) throw error
@@ -146,17 +153,22 @@ export async function enterMarks(results: { examId: string; studentId: string; s
   return data
 }
 
-export async function getStudentResults(studentId: string) {
+export async function getStudentResults(studentId: string, academicYearId?: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('exam_results')
     .select(`
       *,
-      exam:exams(id, name, type),
+      exam:exams(id, name, type, academic_year_id),
       subject:subjects(id, name)
     `)
     .eq('student_id', studentId)
 
+  if (academicYearId) {
+    query = query.eq('exam.academic_year_id', academicYearId)
+  }
+
+  const { data, error } = await query
   if (error) throw error
   
   const resultsByExam: Record<string, { exam: any; subjects: any[]; total: number; maxMarks: number }> = {}

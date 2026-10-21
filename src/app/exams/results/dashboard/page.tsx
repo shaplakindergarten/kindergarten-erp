@@ -33,7 +33,8 @@ import {
   Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 import { getSchoolPrintHeader } from '@/components/print/SchoolPrintHeader';
 
@@ -116,9 +117,12 @@ export default function ResultDashboardPage() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [sections, setSections] = useState<SectionItem[]>([]);
   
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
-  const [selectedClass, setSelectedClass] = useState<string>("");
-  const [selectedSection, setSelectedSection] = useState<string>("all");
+   const [selectedTerm, setSelectedTerm] = useState<string>("");
+   const [selectedClass, setSelectedClass] = useState<string>("");
+   const [selectedSection, setSelectedSection] = useState<string>("all");
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [stats, setStats] = useState<ResultStats>({
     total_students: 0,
@@ -157,23 +161,27 @@ export default function ResultDashboardPage() {
     }
   }, []);
 
-  const fetchTerms = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('exam_terms')
-      .select('id, name, term_code, result_status, status')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching terms:', error);
-      return;
-    }
-    if (data) {
-      setTerms(data);
-      if (data.length > 0 && !selectedTerm) {
-        setSelectedTerm(data[0].id);
-      }
-    }
-  }, [selectedTerm]);
+   const fetchTerms = useCallback(async () => {
+     let termsQuery = supabase
+       .from('exam_terms')
+       .select('id, name, term_code, result_status, status')
+       .order('created_at', { ascending: false });
+     if (selectedYearId) {
+       termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+     }
+     const { data, error } = await termsQuery;
+     
+     if (error) {
+       console.error('Error fetching terms:', error);
+       return;
+     }
+     if (data) {
+       setTerms(data);
+       if (data.length > 0 && !selectedTerm) {
+         setSelectedTerm(data[0].id);
+       }
+     }
+   }, [selectedTerm, selectedYearId]);
 
   const fetchClasses = useCallback(async () => {
     const { data, error } = await supabase
@@ -213,9 +221,9 @@ export default function ResultDashboardPage() {
     
     try {
       // Build query
-      let query = supabase
-        .from('compiled_results')
-        .select(`
+       let query = supabase
+         .from('compiled_results')
+         .select(`
           id,
           student_id,
           gpa,
@@ -231,6 +239,7 @@ students:student_id (
              father_name,
              class_id,
              section_id,
+             academic_year_id,
              classes:class_id (
                id,
                name
@@ -243,6 +252,11 @@ students:student_id (
         `)
         .eq('term_id', selectedTerm)
         .eq('is_published', true);
+      
+      // Filter by academic year
+      if (selectedYearId) {
+        query = query.eq('students.academic_year_id', selectedYearId);
+      }
       
       // Filter by class
       if (selectedClass && selectedClass !== 'all') {
@@ -408,7 +422,7 @@ const top = [...filteredResults]
     } finally {
       setLoading(false);
     }
-  }, [selectedTerm, selectedClass, selectedSection]);
+   }, [selectedTerm, selectedClass, selectedSection, selectedYearId]);
 
   // ============================================
   // PRINT FUNCTIONS - HTML based
@@ -700,25 +714,65 @@ const top = [...filteredResults]
     }
   };
 
-  useEffect(() => {
-    fetchSchoolInfo();
-    fetchTerms();
-    fetchClasses();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) {
-      fetchSections(selectedClass);
-    } else {
-      setSections([]);
-    }
-  }, [selectedClass, fetchSections]);
-
-  useEffect(() => {
-    if (selectedTerm && selectedClass) {
-      fetchResultStats();
-    }
-  }, [selectedTerm, selectedClass, selectedSection, fetchResultStats]);
+   useEffect(() => {
+     fetchSchoolInfo();
+   }, []);
+   
+   useEffect(() => {
+     fetchTerms();
+     fetchClasses();
+   }, [fetchTerms, fetchClasses]);
+   
+   useEffect(() => {
+     if (selectedClass) {
+       fetchSections(selectedClass);
+     } else {
+       setSections([]);
+     }
+   }, [selectedClass, fetchSections]);
+   
+   useEffect(() => {
+     if (selectedTerm && selectedClass) {
+       fetchResultStats();
+     }
+   }, [selectedTerm, selectedClass, selectedSection, fetchResultStats, selectedYearId]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm("");
+     setSelectedClass("");
+     setTerms([]);
+     setClasses([]);
+     setSections([]);
+     setStats({
+       total_students: 0,
+       passed_count: 0,
+       failed_count: 0,
+       pass_percentage: 0,
+       fail_percentage: 0,
+       highest_gpa: 0,
+       lowest_gpa: 0,
+       average_gpa: 0,
+       published_at: null,
+     });
+     setRecentResults([]);
+     setTopStudents([]);
+   }, [selectedYearId]);
 
   const needsSelection = !selectedTerm || !selectedClass;
   const isPublished = stats.published_at !== null && stats.total_students > 0;
@@ -774,7 +828,23 @@ const top = [...filteredResults]
         {/* Filters */}
         <Card className="border-0 shadow-lg rounded-3xl bg-gradient-to-r from-slate-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-xs font-bold text-gray-600 dark:text-gray-400">Academic Year</Label>
+                <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                  <SelectTrigger className="mt-1.5 bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 shadow-sm">
+                    <SelectValue placeholder="All Years" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg">
+                    <SelectItem value="all" className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">All Years</SelectItem>
+                    {activeYears.filter(y => y.id).map(year => (
+                      <SelectItem key={year.id} value={year.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                        {year.year_name} {year.is_current ? "(Current)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label>Exam Term</Label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>

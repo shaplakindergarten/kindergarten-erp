@@ -36,10 +36,12 @@ import {
   GraduationCap,
   Filter,
   School,
-  Building2,
+   Building2,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -119,36 +121,41 @@ export default function GenerateCertificatesPage() {
     logo_url: ''
   });
   
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
-  const [selectedClass, setSelectedClass] = useState<string>("");
-  const [selectedSection, setSelectedSection] = useState<string>("all");
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+   const [selectedTerm, setSelectedTerm] = useState<string>("");
+   const [selectedClass, setSelectedClass] = useState<string>("");
+   const [selectedSection, setSelectedSection] = useState<string>("all");
+   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // --- Data Fetching ---
-  const fetchTerms = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('exam_terms')
-      .select('id, name, term_code')
-      .order('created_at');
-    
-    if (error) {
-      console.error('Error fetching terms:', error);
-      toast.error('Failed to load terms');
-      return;
-    }
-    if (data) {
-      setTerms(data);
-      if (data.length > 0 && !selectedTerm) {
-        setSelectedTerm(data[0].id);
-      }
-    }
-  }, [selectedTerm]);
+   const fetchTerms = useCallback(async () => {
+     let termsQuery = supabase
+       .from('exam_terms')
+       .select('id, name, term_code')
+       .order('created_at');
+     if (selectedYearId) {
+       termsQuery = termsQuery.eq('academic_year_id', selectedYearId);
+     }
+     const { data, error } = await termsQuery;
+     
+     if (error) {
+       console.error('Error fetching terms:', error);
+       toast.error('Failed to load terms');
+       return;
+     }
+     if (data) {
+       setTerms(data);
+       if (data.length > 0 && !selectedTerm) {
+         setSelectedTerm(data[0].id);
+       }
+     }
+   }, [selectedTerm, selectedYearId]);
 
   const fetchClasses = useCallback(async () => {
     const { data, error } = await supabase
@@ -232,9 +239,9 @@ export default function GenerateCertificatesPage() {
     try {
       console.log('Fetching students for class:', selectedClass, 'section:', selectedSection);
       
-      let studentQuery = supabase
-        .from('students')
-        .select(`
+       let studentQuery = supabase
+         .from('students')
+         .select(`
           id, 
           name, 
           class_roll, 
@@ -248,6 +255,10 @@ export default function GenerateCertificatesPage() {
         `)
         .eq('status', 'active')
         .eq('class_id', selectedClass);
+      
+      if (selectedYearId) {
+        studentQuery = studentQuery.eq('academic_year_id', selectedYearId);
+      }
        
       if (selectedSection && selectedSection !== 'all') {
         studentQuery = studentQuery.eq('section_id', selectedSection);
@@ -352,7 +363,7 @@ export default function GenerateCertificatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTerm, selectedClass, selectedSection, searchQuery, classes, sections]);
+   }, [selectedTerm, selectedClass, selectedSection, searchQuery, classes, sections, selectedYearId]);
 
   // --- Certificate Generation ---
   const generateCertificateHtml = (student: Student, template: CertificateTemplate) => {
@@ -548,26 +559,53 @@ export default function GenerateCertificatesPage() {
     }
   };
 
-  // --- Effects ---
-  useEffect(() => {
-    fetchTerms();
-    fetchClasses();
-    fetchTemplates();
-    fetchSchoolSettings();
-  }, []);
+   // --- Effects ---
+   useEffect(() => {
+     fetchTerms();
+     fetchClasses();
+     fetchTemplates();
+     fetchSchoolSettings();
+   }, [fetchTerms]);
 
-  useEffect(() => {
-    if (selectedClass) {
-      fetchSections(selectedClass);
-      setSelectedSection('all');
-    }
-  }, [selectedClass]);
+   useEffect(() => {
+     if (selectedClass) {
+       fetchSections(selectedClass);
+       setSelectedSection('all');
+     }
+   }, [selectedClass]);
 
-  useEffect(() => {
-    if (selectedTerm && selectedClass) {
-      fetchStudentsWithResults();
-    }
-  }, [selectedTerm, selectedClass, selectedSection, searchQuery]);
+   useEffect(() => {
+     if (selectedTerm && selectedClass) {
+       fetchStudentsWithResults();
+     }
+   }, [selectedTerm, selectedClass, selectedSection, searchQuery, selectedYearId]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm("");
+     setSelectedClass("");
+     setSelectedSection("all");
+     setTerms([]);
+     setClasses([]);
+     setSections([]);
+     setStudents([]);
+     setSelectedStudentIds([]);
+   }, [selectedYearId]);
 
   const needsSelection = !selectedTerm || !selectedClass || !selectedTemplate;
 
@@ -635,7 +673,25 @@ export default function GenerateCertificatesPage() {
         {/* Filter Section */}
         <Card className="border-0 shadow-lg rounded-2xl bg-white dark:bg-gray-900">
           <CardContent className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                  <Calendar className="h-4 w-4" /> Academic Year
+                </Label>
+                <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                  <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                    <SelectValue placeholder="All Years" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="all">All Years</SelectItem>
+                    {activeYears.filter(y => y.id).map(year => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.year_name} {year.is_current ? "(Current)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
                   <GraduationCap className="h-4 w-4" /> Exam Term

@@ -9,6 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -38,12 +45,14 @@ import {
   Edit, 
   Trash2, 
   RefreshCw,
-  Award,
-  AlertCircle,
-  ArrowLeft
+   Award,
+   AlertCircle,
+   ArrowLeft,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 import Link from 'next/link';
 
 const supabase = createClient();
@@ -63,8 +72,11 @@ export default function GradeSystemPage() {
   const [grades, setGrades] = useState<GradeRule[]>([]);
   const [open, setOpen] = useState(false);
   const [editingGrade, setEditingGrade] = useState<GradeRule | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingGradeId, setDeletingGradeId] = useState<string | null>(null);
+   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+   const [deletingGradeId, setDeletingGradeId] = useState<string | null>(null);
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [formData, setFormData] = useState({
     grade_name: '',
@@ -75,21 +87,25 @@ export default function GradeSystemPage() {
     is_active: true,
   });
 
-  const fetchGrades = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('grading_rules')
-      .select('*')
-      .order('min_mark', { ascending: false });
-    
-    if (error) {
-      console.error(error);
-      toast.error('Failed to load grading rules');
-    } else {
-      setGrades(data || []);
-    }
-    setLoading(false);
-  }, []);
+   const fetchGrades = useCallback(async () => {
+     setLoading(true);
+     let query = supabase
+       .from('grading_rules')
+       .select('*')
+       .order('min_mark', { ascending: false });
+     if (selectedYearId) {
+       query = query.eq('academic_year_id', selectedYearId);
+     }
+     const { data, error } = await query;
+     
+     if (error) {
+       console.error(error);
+       toast.error('Failed to load grading rules');
+     } else {
+       setGrades(data || []);
+     }
+     setLoading(false);
+   }, [selectedYearId]);
 
   const checkOverlap = (minMark: number, maxMark: number, excludeId?: string): GradeRule | null => {
     return grades.find(g => 
@@ -165,10 +181,10 @@ export default function GradeSystemPage() {
           })
           .eq('id', editingGrade.id);
       } else {
-        result = await supabase
-          .from('grading_rules')
-          .insert([{
-            academic_year_id: null,
+         result = await supabase
+           .from('grading_rules')
+           .insert([{
+             academic_year_id: selectedYearId || null,
             grade_name: formData.grade_name.trim(),
             min_mark: formData.min_mark,
             max_mark: formData.max_mark,
@@ -245,9 +261,31 @@ export default function GradeSystemPage() {
     });
   };
 
-  useEffect(() => {
-    fetchGrades();
-  }, [fetchGrades]);
+   useEffect(() => {
+     fetchGrades();
+   }, [fetchGrades]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset when academic year changes
+   useEffect(() => {
+     setGrades([]);
+     setEditingGrade(null);
+     resetForm();
+   }, [selectedYearId]);
 
   // Default seed data suggestion
   const seedDefaultGrades = async () => {
@@ -264,8 +302,8 @@ export default function GradeSystemPage() {
     ];
     
     for (const grade of defaultGrades) {
-      await supabase.from('grading_rules').insert([{
-        academic_year_id: null,
+       await supabase.from('grading_rules').insert([{
+         academic_year_id: selectedYearId || null,
         ...grade
       }]);
     }
@@ -296,8 +334,24 @@ export default function GradeSystemPage() {
               </h1>
               <p className="text-amber-100 mt-2">Define grade and GPA calculation rules</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {grades.length === 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 dark:text-gray-300" />
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 pl-8 pr-3 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg">
+                      <SelectItem value="all" className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {grades.length === 0 && (
                 <Button 
                   onClick={seedDefaultGrades}
                   variant="outline"

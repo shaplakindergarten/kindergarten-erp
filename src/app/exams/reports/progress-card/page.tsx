@@ -33,13 +33,15 @@ import {
   Heart,
   Sparkles,
   FileText,
-  CalendarCheck,
-  CalendarX,
-  CalendarDays,
-  Percent,
+   CalendarCheck,
+   CalendarX,
+   CalendarDays,
+   Percent,
+   Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, getSupabaseClient } from '@/lib/supabase/client';
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
 
 const supabase = createClient();
 
@@ -258,15 +260,25 @@ async function fetchPrintSettings(academicYearId: string): Promise<PrintSettings
   return DEFAULT_PRINT_SETTINGS;
 }
 
-async function fetchTermsAndClasses() {
-  const [termsRes, classesRes] = await Promise.all([
-    supabase.from('exam_terms').select('id, name, result_status, start_date, end_date').order('created_at'),
-    supabase.from('classes').select('id, name').order('numeric_order')
-  ]);
+async function fetchTermsAndClasses(academicYearId?: string) {
+  let termsQuery = supabase
+    .from('exam_terms')
+    .select('id, name, result_status, start_date, end_date')
+    .order('created_at');
+  if (academicYearId) {
+    termsQuery = termsQuery.eq('academic_year_id', academicYearId);
+  }
+  const classesRes = await supabase.from('classes').select('id, name').order('numeric_order');
+  
+  const { data: termsData, error: termsError } = await termsQuery;
+
+  if (termsError) {
+    console.error('Error fetching terms:', termsError);
+  }
   
   return {
-    terms: termsRes.data as ExamTerm[] || [],
-    classes: classesRes.data as ClassItem[] || []
+    terms: (termsData || []) as ExamTerm[],
+    classes: (classesRes.data || []) as ClassItem[]
   };
 }
 
@@ -283,15 +295,20 @@ async function fetchStudentAttendance(
   studentId: string,
   termId: string,
   classId: string,
-  sectionId: string | null
+  sectionId: string | null,
+  academicYearId?: string
 ): Promise<{ working_days: number; present_days: number; absent_days: number; percentage: number }> {
   try {
     let studentUUID = studentId;
 
     if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(studentId)) {
-      const { data: studentRecord } = await supabase
+      let studentLookupQuery = supabase
         .from('students')
-        .select('id')
+        .select('id');
+      if (academicYearId) {
+        studentLookupQuery = studentLookupQuery.eq('academic_year_id', academicYearId);
+      }
+      const { data: studentRecord } = await studentLookupQuery
         .or(`student_id.eq.${studentId},admission_no.eq.${studentId}`)
         .maybeSingle();
 
@@ -416,13 +433,16 @@ export default function ProgressCardPage() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [printing, setPrinting] = useState(false);
   
-  const [terms, setTerms] = useState<ExamTerm[]>([]);
-  const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [selectedTerm, setSelectedTerm] = useState<string>('');
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSection, setSelectedSection] = useState<string>('');
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+   const [terms, setTerms] = useState<ExamTerm[]>([]);
+   const [classes, setClasses] = useState<ClassItem[]>([]);
+   const [sections, setSections] = useState<Section[]>([]);
+   const [selectedTerm, setSelectedTerm] = useState<string>('');
+   const [selectedClass, setSelectedClass] = useState<string>('');
+   const [selectedSection, setSelectedSection] = useState<string>('');
+   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+   
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
+   const [selectedYearId, setSelectedYearId] = useState<string>('');
   
   const [tabulationData, setTabulationData] = useState<TabulationResult[]>([]);
   const [isPublished, setIsPublished] = useState(false);
@@ -475,7 +495,7 @@ export default function ProgressCardPage() {
     const loadInitialData = async () => {
       try {
         await loadSettings();
-        const { terms: termsData, classes: classesData } = await fetchTermsAndClasses();
+        const { terms: termsData, classes: classesData } = await fetchTermsAndClasses(selectedYearId);
         setTerms(termsData);
         setClasses(classesData);
       } catch (error) {
@@ -485,8 +505,8 @@ export default function ProgressCardPage() {
       }
     };
     
-    loadInitialData();
-  }, [loadSettings]);
+     loadInitialData();
+   }, [loadSettings, selectedYearId]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -558,12 +578,13 @@ export default function ProgressCardPage() {
       }
 
       try {
-        const attendanceData = await fetchStudentAttendance(
-          student.id || selectedStudentId,
-          selectedTerm,
-          selectedClass,
-          selectedSection
-        );
+         const attendanceData = await fetchStudentAttendance(
+           student.id || selectedStudentId,
+           selectedTerm,
+           selectedClass,
+           selectedSection,
+           selectedYearId
+         );
 
         setCurrentStudentWithAttendance({
           ...student,
@@ -583,8 +604,36 @@ export default function ProgressCardPage() {
       }
     };
 
-    loadAttendance();
-  }, [selectedStudentId, selectedTerm, selectedClass, selectedSection, tabulationData]);
+     loadAttendance();
+   }, [selectedStudentId, selectedTerm, selectedClass, selectedSection, tabulationData, selectedYearId]);
+   
+   // Load active academic years
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient();
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const currentYear = years.find((y) => y.is_current) ?? years[0];
+       if (currentYear) {
+         setSelectedYearId(currentYear.id);
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err);
+     });
+   }, []);
+   
+   // Reset dependent filters when academic year changes
+   useEffect(() => {
+     setSelectedTerm('');
+     setSelectedClass('');
+     setSelectedSection('');
+     setTerms([]);
+     setClasses([]);
+     setSections([]);
+     setTabulationData([]);
+     setSelectedStudentId('');
+     setCurrentStudentWithAttendance(null);
+   }, [selectedYearId]);
   
   // ============================================
   // COMPUTED VALUES
@@ -1197,7 +1246,23 @@ export default function ProgressCardPage() {
             <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <span className="font-medium text-gray-700 dark:text-gray-300 text-sm">Filter Options</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Academic Year</Label>
+              <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectValue placeholder="All Years" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg z-50 max-h-[280px] overflow-y-auto">
+                  <SelectItem value="all" className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 py-2.5 px-3">All Years</SelectItem>
+                  {activeYears.filter(y => y.id).map(year => (
+                    <SelectItem key={year.id} value={year.id} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 py-2.5 px-3">
+                      {year.year_name} {year.is_current ? "(Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Exam Term</Label>
               <Select value={selectedTerm} onValueChange={setSelectedTerm}>
