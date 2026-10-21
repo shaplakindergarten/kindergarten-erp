@@ -937,23 +937,59 @@ export async function getSectionsByClass(classId: string) {
   return data || []
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(academicYearId?: string) {
   const supabase = createClient()
+  const supabaseClient = getSupabaseClient()
+
+  let resolvedYearId = academicYearId
+
+  if (!resolvedYearId) {
+    try {
+      resolvedYearId = await getOperationalYearId(supabaseClient)
+      console.log(`[getDashboardStats] Resolved operational academic year: ${resolvedYearId}`)
+    } catch (err) {
+      console.error('[getDashboardStats] Could not resolve operational academic year:', err)
+    }
+  }
 
   try {
+    let studentIds: string[] = []
+    if (resolvedYearId) {
+      const { data: studentRes } = await supabase
+        .from('students')
+        .select('id')
+        .eq('academic_year_id', resolvedYearId)
+      studentIds = studentRes?.map(s => s.id) ?? []
+    }
+
+    let studentsQuery = supabase.from('students').select('id', { count: 'exact', head: true })
+    if (resolvedYearId) {
+      studentsQuery = studentsQuery.eq('academic_year_id', resolvedYearId)
+    }
+
+    let feesQuery = supabase.from('fee_payments').select('amount')
+    if (resolvedYearId && studentIds.length > 0) {
+      feesQuery = feesQuery.in('student_id', studentIds)
+    }
+
+    let attendanceQuery = supabase
+      .from('student_attendance')
+      .select('status')
+      .eq('date', new Date().toISOString().split('T')[0])
+    if (resolvedYearId) {
+      attendanceQuery = attendanceQuery.eq('academic_year_id', resolvedYearId)
+    }
+
     const [
-      { data: students, count: totalStudents },
+      { count: totalStudents },
       { data: staff, count: totalStaff },
       { data: fees },
       { data: attendance },
     ] = await Promise.all([
-      supabase.from('students').select('id', { count: 'exact', head: true }),
+      studentsQuery,
       supabase.from('staff').select('id', { count: 'exact', head: true }),
-      supabase.from('fee_payments').select('amount'),
-      supabase
-        .from('student_attendance')
-        .select('status')
-        .eq('date', new Date().toISOString().split('T')[0]),
+      feesQuery,
+      attendanceQuery,
     ])
 
     const presentToday = attendance?.filter((a) => a.status === 'present').length || 0

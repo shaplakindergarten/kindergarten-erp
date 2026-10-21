@@ -5,7 +5,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, getSupabaseClient } from "@/lib/supabase/client";
+import { getOperationalYearId, getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context";
+import { getDashboardStats } from "@/lib/api/students.service";
 import {
   Users,
   GraduationCap,
@@ -19,10 +21,10 @@ import {
   Clock,
   Megaphone,
   UserPlus,
-  ArrowRight,
+   ArrowRight,
+   Calendar
 } from "lucide-react";
 import { ResponsiveLayout } from "@/components/layout/responsive-layout";
-import { getDashboardStats } from "@/lib/api/students.service";
 import { getAllStudentsWithDues, getAllPaymentsWithAllocation } from "@/lib/api/fees-dynamic";
 import {
   getErrorMessage,
@@ -121,14 +123,20 @@ const CompactKpiCard = ({ title, value, icon: Icon, color, loading }: KpiCardPro
 // ═══════════════════════════════════════════════════════════
 // Hook: Monthly Fee Collection
 // ═══════════════════════════════════════════════════════════
-const useMonthlyFeeCollection = () => {
+const useMonthlyFeeCollection = (operationalYear: string | null) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!operationalYear) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
     const fetch = async () => {
       try {
-        const payments = await getAllPaymentsWithAllocation();
+        const payments = await getAllPaymentsWithAllocation({ academicYearId: operationalYear });
         const now = new Date();
         const months: Record<string, number> = {};
 
@@ -165,8 +173,8 @@ const useMonthlyFeeCollection = () => {
         setLoading(false);
       }
     };
-    fetch();
-  }, []);
+     fetch();
+   }, [operationalYear]);
 
   return { data, loading };
 };
@@ -174,18 +182,27 @@ const useMonthlyFeeCollection = () => {
 // ═══════════════════════════════════════════════════════════
 // Hook: Attendance Trend
 // ═══════════════════════════════════════════════════════════
-const useAttendanceTrend = () => {
+const useAttendanceTrend = (operationalYear: string | null) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!operationalYear) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
     const fetch = async () => {
       try {
-        const { data: attendance, error } = await supabase
+         let attendanceQuery = supabase
           .from("student_attendance")
           .select("date, status")
           .gte("date", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
+          .eq("academic_year_id", operationalYear)
           .order("date", { ascending: true });
+
+        const { data: attendance, error } = await attendanceQuery;
 
         if (error) throw error;
 
@@ -213,8 +230,8 @@ const useAttendanceTrend = () => {
         setLoading(false);
       }
     };
-    fetch();
-  }, []);
+     fetch();
+   }, [operationalYear]);
 
   return { data, loading };
 };
@@ -222,18 +239,33 @@ const useAttendanceTrend = () => {
 // ═══════════════════════════════════════════════════════════
 // Hook: Recent Activity
 // ═══════════════════════════════════════════════════════════
-const useRecentActivity = () => {
+const useRecentActivity = (operationalYear: string | null) => {
   const [activity, setActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!operationalYear) {
+      setActivity([]);
+      setLoading(false);
+      return;
+    }
+
     const fetch = async () => {
       try {
-        const { data: payments } = await supabase
+        const { data: yearStudents } = await supabase
+          .from("students")
+          .select("id")
+          .eq("academic_year_id", operationalYear);
+        const yearStudentIds = (yearStudents || []).map((s: any) => s.id);
+
+        let paymentsQuery = supabase
           .from("fee_payments")
           .select("id, amount, payment_date, receipt_no, student_id")
-          .order("payment_date", { ascending: false })
-          .limit(5);
+          .order("payment_date", { ascending: false });
+        if (yearStudentIds.length > 0) {
+          paymentsQuery = paymentsQuery.in("student_id", yearStudentIds);
+        }
+        const { data: payments } = await paymentsQuery.limit(5);
 
         let paymentStudents: Record<string, string> = {};
         if (payments && payments.length > 0) {
@@ -256,12 +288,14 @@ const useRecentActivity = () => {
           .from("students")
           .select("id, name, created_at")
           .eq("status", "active")
+          .eq("academic_year_id", operationalYear)
           .order("created_at", { ascending: false })
           .limit(5);
 
         const { data: attendanceData } = await supabase
           .from("student_attendance")
           .select("id, date, status, student_id")
+          .eq("academic_year_id", operationalYear)
           .order("date", { ascending: false })
           .limit(5);
 
@@ -325,7 +359,7 @@ const useRecentActivity = () => {
     fetch();
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [operationalYear]);
 
   return { activity, loading };
 };
@@ -602,13 +636,37 @@ export default function DashboardPage() {
   const [noticesLoading, setNoticesLoading] = useState(true);
 
   // 🆕 Pending Admissions counter
-  const [pendingAdmissionsCount, setPendingAdmissionsCount] = useState(0);
+   const [pendingAdmissionsCount, setPendingAdmissionsCount] = useState(0);
+   const [operationalYear, setOperationalYear] = useState<string | null>(null);
+   const [operationalYearName, setOperationalYearName] = useState<string>("");
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([]);
 
-  const { data: monthlyCollectionData, loading: monthlyLoading } = useMonthlyFeeCollection();
-  const { data: attendanceTrendData, loading: attendanceTrendLoading } = useAttendanceTrend();
-  const { activity: recentActivity, loading: activityLoading } = useRecentActivity();
+   const { data: monthlyCollectionData, loading: monthlyLoading } = useMonthlyFeeCollection(operationalYear);
+   const { data: attendanceTrendData, loading: attendanceTrendLoading } = useAttendanceTrend(operationalYear);
+   const { activity: recentActivity, loading: activityLoading } = useRecentActivity(operationalYear);
+   
+   const fetchOperationalYear = async () => {
+     try {
+       const supabaseClient = getSupabaseClient();
+       const yearId = await getOperationalYearId(supabaseClient);
+       setOperationalYear(yearId);
+       const years = await getAllActiveYears(supabaseClient);
+       setActiveYears(years);
+       const found = years.find((y) => y.id === yearId) ?? years.find((y) => y.is_current) ?? years[0];
+       if (found) {
+         setOperationalYearName(found.year_name);
+       }
+     } catch (err) {
+       console.error("Failed to load operational year:", err);
+      }
+    };
 
-  const totalBoys = studentsSummary.reduce((sum, row) => sum + row.boys, 0);
+    // Resolve operational academic year on mount
+    useEffect(() => {
+      fetchOperationalYear();
+    }, []);
+
+    const totalBoys = studentsSummary.reduce((sum, row) => sum + row.boys, 0);
   const totalGirls = studentsSummary.reduce((sum, row) => sum + row.girls, 0);
   const totalStudentsCount = studentsSummary.reduce((sum, row) => sum + row.total, 0);
 
@@ -751,9 +809,11 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!operationalYear) return;
+
     const loadStats = async () => {
       try {
-        const data = await getDashboardStats();
+        const data = await getDashboardStats(operationalYear);
         setDashboardStats((prev) => ({ ...prev, ...data }));
       } catch (err) {
         if (isNetworkError(err)) {
@@ -795,7 +855,7 @@ export default function DashboardPage() {
 
     const loadPendingFees = async () => {
       try {
-        const dueStudents = await getAllStudentsWithDues();
+         const dueStudents = await getAllStudentsWithDues({ academicYearId: operationalYear });
         const totalDue = dueStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0);
         console.log("✅ Total Due Amount:", totalDue);
         setDashboardStats((prev) => ({ ...prev, pendingFees: totalDue }));
@@ -809,24 +869,40 @@ export default function DashboardPage() {
       }
     };
 
-    const loadCollections = async () => {
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+     const loadCollections = async () => {
+       try {
+         const today = new Date().toISOString().split("T")[0];
+         const thirtyDaysAgo = new Date();
+         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const [todayPayments, monthPayments, allPayments] = await Promise.all([
-          supabase
-            .from("fee_payments")
-            .select("amount")
-            .gte("payment_date", `${today}T00:00:00`)
-            .lte("payment_date", `${today}T23:59:59`),
-          supabase
-            .from("fee_payments")
-            .select("amount")
-            .gte("payment_date", thirtyDaysAgo.toISOString()),
-          supabase.from("fee_payments").select("amount"),
-        ]);
+         const { data: yearStudents } = await supabase
+           .from("students")
+           .select("id")
+           .eq("academic_year_id", operationalYear);
+         const yearStudentIds = (yearStudents || []).map((s: any) => s.id);
+
+         let todayQuery = supabase
+           .from("fee_payments")
+           .select("amount")
+           .gte("payment_date", `${today}T00:00:00`)
+           .lte("payment_date", `${today}T23:59:59`);
+         let monthQuery = supabase
+           .from("fee_payments")
+           .select("amount")
+           .gte("payment_date", thirtyDaysAgo.toISOString());
+         let allQuery = supabase.from("fee_payments").select("amount");
+
+         if (yearStudentIds.length > 0) {
+           todayQuery = todayQuery.in("student_id", yearStudentIds);
+           monthQuery = monthQuery.in("student_id", yearStudentIds);
+           allQuery = allQuery.in("student_id", yearStudentIds);
+         }
+
+         const [todayPayments, monthPayments, allPayments] = await Promise.all([
+           todayQuery,
+           monthQuery,
+           allQuery,
+         ]);
 
         const todaysCollection = (todayPayments.data || []).reduce(
           (sum: number, p: any) => sum + (Number(p.amount) || 0),
@@ -860,19 +936,20 @@ export default function DashboardPage() {
       await Promise.all([loadStats(), loadClasses()]);
       await Promise.all([loadPendingFees(), loadCollections()]);
     };
-    loadAll();
-  }, []);
+     loadAll();
+   }, [operationalYear]);
 
-  useEffect(() => {
-    if (classesMap.size === 0) return;
+   useEffect(() => {
+     if (classesMap.size === 0 || !operationalYear) return;
 
-    const loadStudentsSummary = async () => {
-      setSummaryLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("students")
-          .select("class_id, gender, status")
-          .eq("status", "active");
+     const loadStudentsSummary = async () => {
+       setSummaryLoading(true);
+       try {
+         const { data, error } = await supabase
+           .from("students")
+           .select("class_id, gender, status")
+           .eq("status", "active")
+           .eq("academic_year_id", operationalYear);
 
         if (error) throw error;
 
@@ -920,11 +997,11 @@ export default function DashboardPage() {
       }
     };
 
-    loadStudentsSummary();
-  }, [classesMap]);
+     loadStudentsSummary();
+   }, [classesMap, operationalYear]);
 
   useEffect(() => {
-    if (classesMap.size === 0) return;
+    if (classesMap.size === 0 || !operationalYear) return;
 
     const subscription = supabase
       .channel("students-changes")
@@ -936,7 +1013,8 @@ export default function DashboardPage() {
             const { data, error } = await supabase
               .from("students")
               .select("class_id, gender, status")
-              .eq("status", "active");
+              .eq("status", "active")
+              .eq("academic_year_id", operationalYear);
 
             if (error) throw error;
 
@@ -989,7 +1067,7 @@ export default function DashboardPage() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [classesMap]);
+  }, [classesMap, operationalYear]);
 
   const formatCurrency = (amount: number) => {
     if (!amount) return "৳ 0";
@@ -1017,21 +1095,27 @@ export default function DashboardPage() {
                 <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 p-2 text-white shadow-lg shadow-indigo-500/20">
                   <LayoutDashboard className="h-4 w-4" />
                 </div>
-                <div>
-                  <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg">
-                    Welcome back,{" "}
-                    <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                      Dashboard!
-                    </span>
-                  </h1>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    A premium snapshot of your school operations
-                  </p>
-                </div>
-              </div>
+                 <div>
+                   <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg">
+                     Welcome back,{" "}
+                     <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                       Dashboard!
+                     </span>
+                   </h1>
+                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                     A premium snapshot of your school operations
+                   </p>
+                 </div>
+               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href="/reports">
+               <div className="flex flex-wrap items-center gap-2">
+                 {operationalYearName && (
+                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-100/70 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-[11px] font-medium text-indigo-700 dark:text-indigo-300">
+                     <Calendar className="h-3 w-3" />
+                     Academic Year: {operationalYearName}
+                   </span>
+                 )}
+                 <Link href="/reports">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -1105,7 +1189,18 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* ====== KPI CARDS ====== */}
+         {/* ====== KPI CARDS ====== */}
+        {!operationalYear && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          </div>
+        )}
+        {operationalYear && (
+        <>
         <div className="lg:hidden">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <CompactKpiCard
@@ -1183,6 +1278,9 @@ export default function DashboardPage() {
             loading={loading}
           />
         </div>
+
+        </>
+        )}
 
         {/* ====== CHARTS ROW ====== */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
