@@ -42,11 +42,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
 import { useToastStore } from "@/store/useStore"
 import { format, addDays, subDays } from "date-fns"
 import { getStaff, updateStaffPhoto } from "@/lib/api/staff"
 import { generatePDFWithPuppeteer, generateStaffReportHTML } from "@/lib/pdf-generator"
+import { getAllActiveYears, type AcademicYearRecord } from '@/lib/api/academic-year-context'
 
 const supabase = createClient()
 
@@ -126,6 +127,8 @@ const STATUS_CFG: Record<AttendanceStatus, {
 export default function StaffAttendancePage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [staff, setStaff] = useState<StaffWithAttendance[]>([])
+  const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+  const [selectedYearId, setSelectedYearId] = useState<string>("")
   
   // Lock System States
   const [isLockedDay, setIsLockedDay] = useState(false)
@@ -189,7 +192,24 @@ export default function StaffAttendancePage() {
            school_logo: "",
          })
        })
-   }, [])
+    }, [])
+
+  // Load active academic years and set default
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      } catch (err) {
+        console.error("Failed to load academic years:", err)
+      }
+    })()
+  }, [])
 
   // Get weekly off settings
   const getWeeklyOffSettings = useCallback(async (): Promise<{ is_friday_off: boolean; is_saturday_off: boolean }> => {
@@ -281,10 +301,16 @@ export default function StaffAttendancePage() {
       setApprovedLeaves(leaves)
       
       const dateStr = format(selectedDate, "yyyy-MM-dd")
-      const { data: attendanceData } = await supabase
+      let attendanceQuery = supabase
         .from('staff_attendance')
         .select('*')
         .eq('date', dateStr)
+
+      if (selectedYearId) {
+        attendanceQuery = attendanceQuery.eq('academic_year_id', selectedYearId)
+      }
+
+      const { data: attendanceData } = await attendanceQuery
       
       const attendanceMap = new Map<string, any>()
       attendanceData?.forEach(att => {
@@ -321,7 +347,7 @@ export default function StaffAttendancePage() {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [selectedDate, addToast, checkDateLock, fetchApprovedLeaves])
+  }, [selectedDate, addToast, checkDateLock, fetchApprovedLeaves, selectedYearId])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -402,6 +428,7 @@ export default function StaffAttendancePage() {
           remarks: s.attendance_remarks || '',
           check_in: s.check_in || null,
           check_out: s.check_out || null,
+          academic_year_id: selectedYearId,
         }
       })
       
@@ -953,7 +980,23 @@ export default function StaffAttendancePage() {
         {showFilters && (
           <Card className="border-0 shadow-md bg-white dark:bg-slate-800">
             <CardContent className="pt-5 pb-4">
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="w-full rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">
+                      <SelectItem value="all">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map((y) => (
+                        <SelectItem key={y.id} value={y.id}>
+                          {y.year_name} {y.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Search Staff</label>
                   <div className="relative">

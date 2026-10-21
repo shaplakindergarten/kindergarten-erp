@@ -29,7 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, startOfMonth, endOfMonth, subDays } from "date-fns"
 
@@ -74,14 +75,31 @@ export default function BiometricLogPage() {
     searchTerm: "",
   })
   const [logs, setLogs] = useState<BiometricLog[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showFilters, setShowFilters] = useState(true)
+   const [loading, setLoading] = useState(false)
+   const [showFilters, setShowFilters] = useState(true)
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
   const [deviceStatus, setDeviceStatus] = useState<{ online: boolean; lastSync: string }>({
     online: true,
     lastSync: new Date().toISOString(),
-  })
+   })
 
-  // Load biometric logs
+   // ✅ Load academic years and default to current
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient()
+       const years = await getAllActiveYears(supabaseClient)
+       setActiveYears(years)
+       const currentYear = years.find((y) => y.is_current) ?? years[0]
+       if (currentYear) {
+         setSelectedYearId(currentYear.id)
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err)
+     })
+   }, [])
+
+   // Load biometric logs
   const loadBiometricLogs = useCallback(async () => {
     setLoading(true)
     try {
@@ -92,7 +110,7 @@ export default function BiometricLogPage() {
       const endDate = new Date(filters.endDate)
       
       // Get student attendance with check_in times
-      const { data: studentAttendance } = await supabase
+      let studentAttQuery = supabase
         .from("student_attendance")
         .select(`
           id,
@@ -105,9 +123,13 @@ export default function BiometricLogPage() {
         .gte("date", filters.startDate)
         .lte("date", filters.endDate)
         .not("check_in", "is", null)
+      if (selectedYearId) {
+        studentAttQuery = studentAttQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: studentAttendance } = await studentAttQuery
 
       // Get staff attendance with check_in times
-      const { data: staffAttendance } = await supabase
+      let staffAttQuery = supabase
         .from("staff_attendance")
         .select(`
           id,
@@ -119,6 +141,10 @@ export default function BiometricLogPage() {
         .gte("date", filters.startDate)
         .lte("date", filters.endDate)
         .not("check_in", "is", null)
+      if (selectedYearId) {
+        staffAttQuery = staffAttQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: staffAttendance } = await staffAttQuery
 
       const biometricLogs: BiometricLog[] = []
 
@@ -193,7 +219,7 @@ biometricLogs.push({
     } finally {
       setLoading(false)
     }
-  }, [filters])
+   }, [filters, selectedYearId])
 
   useEffect(() => {
     loadBiometricLogs()
@@ -360,7 +386,23 @@ biometricLogs.push({
         {showFilters && (
           <Card className="border-0 shadow-md bg-white dark:bg-slate-800">
             <CardContent className="pt-5 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="w-full h-9 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-800">
+                      <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">User Type</label>
                   <Select

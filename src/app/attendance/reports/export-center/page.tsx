@@ -29,7 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 
@@ -135,7 +136,9 @@ export default function ExportCenterPage() {
     classId: "all",
     format: "csv",
   })
-  const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
+   const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
 
   // Fetch classes
   useEffect(() => {
@@ -146,9 +149,24 @@ export default function ExportCenterPage() {
       .then(({ data }) => {
         if (data) setClasses(data)
       })
-  }, [])
+    }, [])
 
-  // Load export history
+    // ✅ Load academic years and default to current
+    useEffect(() => {
+      (async () => {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      })().catch((err) => {
+        console.error("Failed to load academic years:", err)
+      })
+    }, [])
+
+    // Load export history
   useEffect(() => {
     const savedHistory = localStorage.getItem("export_history")
     if (savedHistory) {
@@ -340,9 +358,25 @@ export default function ExportCenterPage() {
                   <CardDescription>Configure your export settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Start Date</label>
+                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                     <div>
+                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                       <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                         <SelectTrigger className="w-full h-9 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                           <SelectValue placeholder="All Years" />
+                         </SelectTrigger>
+                         <SelectContent className="bg-white dark:bg-slate-800">
+                           <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                           {activeYears.filter(y => y.id).map(year => (
+                             <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                               {year.year_name} {year.is_current ? "(Current)" : ""}
+                             </SelectItem>
+                           ))}
+                         </SelectContent>
+                       </Select>
+                     </div>
+                     <div>
+                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Start Date</label>
                       <Input
                         type="date"
                         value={filters.startDate}

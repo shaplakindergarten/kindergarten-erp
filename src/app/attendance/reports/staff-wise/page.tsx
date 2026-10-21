@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
 import { 
   Calendar, 
@@ -149,8 +150,10 @@ export default function StaffWiseAttendancePage() {
     school_email: "",
   })
   
-  const [loading, setLoading] = useState(false)
-  const [pdfGen, setPdfGen] = useState(false)
+   const [loading, setLoading] = useState(false)
+   const [pdfGen, setPdfGen] = useState(false)
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
 
 // Fetch school info
    useEffect(() => {
@@ -167,7 +170,22 @@ export default function StaffWiseAttendancePage() {
            school_logo: "",
          })
        })
-   }, [])
+    }, [])
+
+    // ✅ Load academic years and default to current
+    useEffect(() => {
+      (async () => {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      })().catch((err) => {
+        console.error("Failed to load academic years:", err)
+      })
+  }, [])
 
   // Generate month days for monthly report
   useEffect(() => {
@@ -182,11 +200,11 @@ export default function StaffWiseAttendancePage() {
   // Fetch staff data with error handling
   const fetchStaff = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("staff")
-        .select("*")
-        .eq("status", "active")
-        .order("name")
+      let query = supabase.from("staff").select("*").eq("status", "active").order("name")
+      if (selectedYearId) {
+        query = query.eq("academic_year_id", selectedYearId)
+      }
+      const { data, error } = await query
       
       if (error) {
         console.warn("Staff table not found or error, using sample data:", error.message)
@@ -262,12 +280,16 @@ export default function StaffWiseAttendancePage() {
         
         let attendanceData = null
         try {
-          const { data } = await supabase
-            .from("staff_attendance")
-            .select("staff_id, status")
-            .in("staff_id", staffIds)
-            .eq("date", dateStr)
-          attendanceData = data
+        let attendanceQuery = supabase
+          .from("staff_attendance")
+          .select("staff_id, status")
+          .in("staff_id", staffIds)
+          .eq("date", dateStr)
+        if (selectedYearId) {
+          attendanceQuery = attendanceQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data } = await attendanceQuery
+        attendanceData = data
         } catch (err) {
           console.warn("staff_attendance table may not exist:", err)
         }
@@ -359,13 +381,17 @@ export default function StaffWiseAttendancePage() {
         
         let attendanceData = null
         try {
-          const { data } = await supabase
-            .from("staff_attendance")
-            .select("staff_id, status, date")
-            .in("staff_id", staffIds)
-            .gte("date", startDate)
-            .lte("date", endDate)
-          attendanceData = data
+        let attendanceQuery = supabase
+          .from("staff_attendance")
+          .select("staff_id, status, date")
+          .in("staff_id", staffIds)
+          .gte("date", startDate)
+          .lte("date", endDate)
+        if (selectedYearId) {
+          attendanceQuery = attendanceQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data } = await attendanceQuery
+        attendanceData = data
         } catch (err) {
           console.warn("staff_attendance table may not exist:", err)
         }
@@ -480,7 +506,7 @@ export default function StaffWiseAttendancePage() {
     } finally {
       setLoading(false)
     }
-  }, [reportType, selectedDate, selectedMonth, selectedDepartment, selectedRole, staffData, monthDays])
+   }, [reportType, selectedDate, selectedMonth, selectedDepartment, selectedRole, staffData, monthDays, selectedYearId])
 
   useEffect(() => {
     if (staffData.length > 0) {
@@ -905,6 +931,19 @@ export default function StaffWiseAttendancePage() {
               <Button onClick={loadReport} variant="outline" size="sm" className="rounded-xl ml-auto">
                 <RefreshCw className="h-4 w-4 mr-1" />Refresh
               </Button>
+              <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[140px] h-9 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                  <SelectValue placeholder="All Years" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-slate-800">
+                  <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                  {activeYears.filter(y => y.id).map(year => (
+                    <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                      {year.year_name} {year.is_current ? "(Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

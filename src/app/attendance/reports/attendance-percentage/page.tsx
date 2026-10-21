@@ -27,7 +27,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, differenceInDays } from "date-fns"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
@@ -112,9 +113,11 @@ export default function AttendancePercentageReportPage() {
   const [attendanceData, setAttendanceData] = useState<AttendancePercentage[]>([])
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [sections, setSections] = useState<SectionItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showFilters, setShowFilters] = useState(true)
-  const [chartType, setChartType] = useState<"bar" | "pie">("bar")
+   const [loading, setLoading] = useState(false)
+   const [showFilters, setShowFilters] = useState(true)
+   const [chartType, setChartType] = useState<"bar" | "pie">("bar")
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
 
 // Fetch school info from school_settings
    useEffect(() => {
@@ -135,8 +138,23 @@ export default function AttendancePercentageReportPage() {
        }
      }
      
-     fetchSchoolInfo()
-   }, [])
+      fetchSchoolInfo()
+    }, [])
+
+    // ✅ Load academic years and default to current
+    useEffect(() => {
+      (async () => {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      })().catch((err) => {
+        console.error("Failed to load academic years:", err)
+      })
+    }, [])
 
   // Fetch classes
   useEffect(() => {
@@ -213,9 +231,12 @@ export default function AttendancePercentageReportPage() {
         if (filters.sectionId !== "all") {
           studentQuery = studentQuery.eq("section_id", filters.sectionId)
         }
+         if (selectedYearId) {
+           studentQuery = studentQuery.eq("academic_year_id", selectedYearId)
+         }
 
-        const { data: students, error: studentError } = await studentQuery
-        if (studentError) throw studentError
+         const { data: students, error: studentError } = await studentQuery
+         if (studentError) throw studentError
 
         if (!students || students.length === 0) {
           setAttendanceData([])
@@ -248,11 +269,15 @@ export default function AttendancePercentageReportPage() {
 
         const dateRange = eachDayOfInterval({ start: startDate, end: endDate }).map((d) => format(d, "yyyy-MM-dd"))
 
-        const { data: attendance, error: attendanceError } = await supabase
-          .from("student_attendance")
-          .select("student_id, status")
-          .in("date", dateRange)
-          .in("student_id", students.map(s => s.id))
+      let attendanceQuery = supabase
+        .from("student_attendance")
+        .select("student_id, status")
+        .in("date", dateRange)
+        .in("student_id", students.map(s => s.id))
+      if (selectedYearId) {
+        attendanceQuery = attendanceQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: attendance, error: attendanceError } = await attendanceQuery
 
         if (attendanceError) throw attendanceError
 
@@ -307,10 +332,14 @@ export default function AttendancePercentageReportPage() {
         setAttendanceData(filtered)
       } else {
         // Staff attendance percentage
-        const { data: staff, error: staffError } = await supabase
+        let staffQuery = supabase
           .from("staff")
           .select("*")
           .eq("status", "active")
+        if (selectedYearId) {
+          staffQuery = staffQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: staff, error: staffError } = await staffQuery
 
         if (staffError) throw staffError
 
@@ -322,11 +351,15 @@ export default function AttendancePercentageReportPage() {
 
         const dateRange = eachDayOfInterval({ start: startDate, end: endDate }).map((d) => format(d, "yyyy-MM-dd"))
 
-        const { data: attendance, error: attendanceError } = await supabase
-          .from("staff_attendance")
-          .select("staff_id, status")
-          .in("date", dateRange)
-          .in("staff_id", staff.map(s => s.id))
+      let staffAttendanceQuery = supabase
+        .from("staff_attendance")
+        .select("staff_id, status")
+        .in("date", dateRange)
+        .in("staff_id", staff.map(s => s.id))
+      if (selectedYearId) {
+        staffAttendanceQuery = staffAttendanceQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: attendance, error: attendanceError } = await staffAttendanceQuery
 
         if (attendanceError) throw attendanceError
 
@@ -382,7 +415,7 @@ export default function AttendancePercentageReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters])
+   }, [filters, selectedYearId])
 
   useEffect(() => {
     loadAttendancePercentage()
@@ -603,7 +636,23 @@ export default function AttendancePercentageReportPage() {
         {showFilters && (
           <Card className="border-0 shadow-md bg-white dark:bg-slate-800">
             <CardContent className="pt-5 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="w-full h-9 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-800">
+                      <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">User Type</label>
                   <Select

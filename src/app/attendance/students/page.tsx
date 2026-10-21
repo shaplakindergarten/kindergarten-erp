@@ -576,6 +576,7 @@ export default function StudentAttendancePage() {
           date: selectedDate,
           status: validStatus,
           remarks: attendance[s.id]?.remarks || "",
+          academic_year_id: selectedYearId,
         }
       })
       const { error } = await supabase.from("student_attendance")

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import {
   Calendar, 
   FileText, 
@@ -93,9 +94,12 @@ const fmtDisplay = (d: string) => {
 export default function DailyAttendancePage() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [selectedClass, setSelectedClass] = useState("all")
-  const [selectedSection, setSelectedSection] = useState("all")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
+   const [selectedSection, setSelectedSection] = useState("all")
+   const [searchTerm, setSearchTerm] = useState("")
+   const [showFilters, setShowFilters] = useState(false)
+
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
   
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [sections, setSections] = useState<SectionItem[]>([])
@@ -133,7 +137,22 @@ export default function DailyAttendancePage() {
       })
   }, [])
 
-  // Fetch classes
+   // ✅ Load academic years and default to current
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient()
+       const years = await getAllActiveYears(supabaseClient)
+       setActiveYears(years)
+       const currentYear = years.find((y) => y.is_current) ?? years[0]
+       if (currentYear) {
+         setSelectedYearId(currentYear.id)
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err)
+     })
+   }, [])
+
+   // Fetch classes
   useEffect(() => {
     supabase
       .from("classes")
@@ -162,9 +181,10 @@ export default function DailyAttendancePage() {
         .select("id, name, student_id, class_roll, class_id, section_id")
         .eq("status", "active")
         .order("class_roll")
-      
+     
       if (selectedClass !== "all") query = query.eq("class_id", selectedClass)
       if (selectedSection !== "all") query = query.eq("section_id", selectedSection)
+      if (selectedYearId) query = query.eq("academic_year_id", selectedYearId)
       
       const { data: studentsData } = await query
       
@@ -195,11 +215,17 @@ export default function DailyAttendancePage() {
         sectionData?.forEach(s => sectionMap.set(s.id, s.name))
       }
       
-      const { data: attendanceData } = await supabase
+      let attendanceQuery = supabase
         .from("student_attendance")
         .select("student_id, status, date")
         .in("student_id", studentsData.map(s => s.id))
         .eq("date", selectedDate)
+
+      if (selectedYearId) {
+        attendanceQuery = attendanceQuery.eq("academic_year_id", selectedYearId)
+      }
+
+      const { data: attendanceData } = await attendanceQuery
       
       const attendanceCount: Record<string, { present: number; absent: number; late: number; total: number }> = {}
       
@@ -261,7 +287,7 @@ export default function DailyAttendancePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedDate, selectedClass, selectedSection])
+  }, [selectedDate, selectedClass, selectedSection, selectedYearId])
 
   useEffect(() => {
     loadReport()
@@ -500,7 +526,23 @@ export default function DailyAttendancePage() {
         {showFilters && (
           <Card className="border-0 shadow-md bg-white dark:bg-slate-800">
             <CardContent className="pt-5 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-800">
+                      <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Class</label>
                   <Select value={selectedClass} onValueChange={v => { setSelectedClass(v); setSelectedSection("all") }}>

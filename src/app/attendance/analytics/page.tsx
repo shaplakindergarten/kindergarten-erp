@@ -29,7 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval } from "date-fns"
 import {
@@ -71,11 +72,28 @@ interface AnalyticsData {
 const COLORS = ["#10b981", "#ef4444", "#f59e0b", "#8b5cf6"]
 
 export default function AttendanceAnalyticsPage() {
-  const [period, setPeriod] = useState<"week" | "month" | "quarter" | "year">("month")
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
-  const [loading, setLoading] = useState(false)
+   const [period, setPeriod] = useState<"week" | "month" | "quarter" | "year">("month")
+   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+   const [loading, setLoading] = useState(false)
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
 
-  const loadAnalytics = useCallback(async () => {
+   // ✅ Load academic years and default to current
+   useEffect(() => {
+     (async () => {
+       const supabaseClient = getSupabaseClient()
+       const years = await getAllActiveYears(supabaseClient)
+       setActiveYears(years)
+       const currentYear = years.find((y) => y.is_current) ?? years[0]
+       if (currentYear) {
+         setSelectedYearId(currentYear.id)
+       }
+     })().catch((err) => {
+       console.error("Failed to load academic years:", err)
+     })
+   }, [])
+
+   const loadAnalytics = useCallback(async () => {
     setLoading(true)
     try {
       const today = new Date()
@@ -85,37 +103,53 @@ export default function AttendanceAnalyticsPage() {
       const monthStart = startOfMonth(today)
       const monthEnd = endOfMonth(today)
 
-      // Get today's attendance
-      const { data: todayAttendance } = await supabase
+       // Get today's attendance
+      let todayAttQuery = supabase
         .from("student_attendance")
         .select("status")
         .eq("date", todayStr)
+      if (selectedYearId) {
+        todayAttQuery = todayAttQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: todayAttendance } = await todayAttQuery
 
       const todayPresent = todayAttendance?.filter((a) => a.status === "present" || a.status === "late").length || 0
       const todayAbsent = todayAttendance?.filter((a) => a.status === "absent").length || 0
       const todayLate = todayAttendance?.filter((a) => a.status === "late").length || 0
 
-      // Get total students
-      const { count: totalStudents } = await supabase
+       // Get total students
+      let totalStudentsQuery = supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("status", "active")
+      if (selectedYearId) {
+        totalStudentsQuery = totalStudentsQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { count: totalStudents } = await totalStudentsQuery
 
-      // Get total staff
-      const { count: totalStaff } = await supabase
+       // Get total staff
+      let totalStaffQuery = supabase
         .from("staff")
         .select("*", { count: "exact", head: true })
         .eq("status", "active")
+      if (selectedYearId) {
+        totalStaffQuery = totalStaffQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { count: totalStaff } = await totalStaffQuery
 
       // Calculate overall attendance for the period
       const periodStart = period === "week" ? weekStart : period === "month" ? monthStart : subMonths(today, period === "quarter" ? 3 : 12)
       const periodStartStr = format(periodStart, "yyyy-MM-dd")
       
-      const { data: periodAttendance } = await supabase
+       let periodAttQuery = supabase
         .from("student_attendance")
         .select("status")
         .gte("date", periodStartStr)
         .lte("date", todayStr)
+      if (selectedYearId) {
+        periodAttQuery = periodAttQuery.eq("academic_year_id", selectedYearId)
+      }
+      const { data: periodAttendance } = await periodAttQuery
 
       const totalDays = periodAttendance?.length || 1
       const presentCount = periodAttendance?.filter((a) => a.status === "present" || a.status === "late").length || 0
@@ -129,10 +163,14 @@ export default function AttendanceAnalyticsPage() {
         const dateStr = format(date, "yyyy-MM-dd")
         const dayName = format(date, "EEE")
         
-        const { data: dayAttendance } = await supabase
+        let dayAttQuery = supabase
           .from("student_attendance")
           .select("status")
           .eq("date", dateStr)
+        if (selectedYearId) {
+          dayAttQuery = dayAttQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: dayAttendance } = await dayAttQuery
         
         weeklyTrend.push({
           day: dayName,
@@ -147,17 +185,25 @@ export default function AttendanceAnalyticsPage() {
       
       const classPerformance = []
       for (const cls of classes || []) {
-        const { data: students } = await supabase
+        let classStudentsQuery = supabase
           .from("students")
           .select("id")
           .eq("class_id", cls.id)
           .eq("status", "active")
+        if (selectedYearId) {
+          classStudentsQuery = classStudentsQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: students } = await classStudentsQuery
         
-        const { data: attendance } = await supabase
+        let classAttQuery = supabase
           .from("student_attendance")
           .select("status")
           .in("student_id", students?.map(s => s.id) || [])
           .gte("date", periodStartStr)
+        if (selectedYearId) {
+          classAttQuery = classAttQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: attendance } = await classAttQuery
         
         const total = attendance?.length || 1
         const present = attendance?.filter(a => a.status === "present" || a.status === "late").length || 0
@@ -197,7 +243,7 @@ export default function AttendanceAnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period])
+   }, [period, selectedYearId])
 
   useEffect(() => {
     loadAnalytics()
@@ -240,8 +286,21 @@ export default function AttendanceAnalyticsPage() {
               <p className="text-blue-100 text-sm">AI-powered insights and trends</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
+           <div className="flex gap-2">
+             <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+               <SelectTrigger className="w-40 bg-white/20 text-white border-white/30 rounded-xl">
+                 <SelectValue placeholder="All Years" />
+               </SelectTrigger>
+               <SelectContent className="bg-white dark:bg-slate-800">
+                 <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                 {activeYears.filter(y => y.id).map(year => (
+                   <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                     {year.year_name} {year.is_current ? "(Current)" : ""}
+                   </SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+             <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
               <SelectTrigger className="w-32 bg-white/20 text-white border-white/30 rounded-xl">
                 <SelectValue />
               </SelectTrigger>

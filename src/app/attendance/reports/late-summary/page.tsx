@@ -29,7 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ResponsiveLayout } from "@/components/layout/responsive-layout"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getSupabaseClient } from "@/lib/supabase/client"
+import { getAllActiveYears, type AcademicYearRecord } from "@/lib/api/academic-year-context"
 import { toast } from "sonner"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 import { getSchoolPrintHeader } from "@/components/print/SchoolPrintHeader"
@@ -126,9 +127,11 @@ export default function LateSummaryReportPage() {
   const [staffLateRecords, setStaffLateRecords] = useState<StaffLateRecord[]>([])
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [sections, setSections] = useState<SectionItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showFilters, setShowFilters] = useState(true)
-  const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar")
+   const [loading, setLoading] = useState(false)
+   const [showFilters, setShowFilters] = useState(true)
+   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar")
+   const [activeYears, setActiveYears] = useState<AcademicYearRecord[]>([])
+   const [selectedYearId, setSelectedYearId] = useState<string>("")
 
 // Fetch school info from school_settings
    useEffect(() => {
@@ -145,13 +148,28 @@ export default function LateSummaryReportPage() {
        }
      }
      
-     fetchSchoolInfo()
+      fetchSchoolInfo()
+    }, [])
+
+    // ✅ Load academic years and default to current
+    useEffect(() => {
+      (async () => {
+        const supabaseClient = getSupabaseClient()
+        const years = await getAllActiveYears(supabaseClient)
+        setActiveYears(years)
+        const currentYear = years.find((y) => y.is_current) ?? years[0]
+        if (currentYear) {
+          setSelectedYearId(currentYear.id)
+        }
+      })().catch((err) => {
+        console.error("Failed to load academic years:", err)
+      })
    }, [])
 
-  // Fetch classes
-  useEffect(() => {
-    const fetchClasses = async () => {
-      const { data, error } = await supabase
+   // Fetch classes
+   useEffect(() => {
+     const fetchClasses = async () => {
+       const { data, error } = await supabase
         .from("classes")
         .select("id, name")
         .order("numeric_order", { ascending: true })
@@ -227,9 +245,11 @@ export default function LateSummaryReportPage() {
         if (filters.sectionId !== "all") {
           studentsQuery = studentsQuery.eq("section_id", filters.sectionId)
         }
+        if (selectedYearId) {
+          studentsQuery = studentsQuery.eq("academic_year_id", selectedYearId)
+        }
 
         const { data: studentsData, error: studentsError } = await studentsQuery
-        
         if (studentsError) {
           console.error("Students fetch error:", studentsError)
           throw studentsError
@@ -246,13 +266,17 @@ export default function LateSummaryReportPage() {
         console.log(`Found ${studentIds.length} students`)
 
         // Step 2: Get attendance records for these students
-        const { data: attendanceData, error: attendanceError } = await supabase
+        let attendanceQuery = supabase
           .from("student_attendance")
           .select("*")
           .in("student_id", studentIds)
           .gte("date", filters.startDate)
           .lte("date", filters.endDate)
           .eq("status", "late")
+        if (selectedYearId) {
+          attendanceQuery = attendanceQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: attendanceData, error: attendanceError } = await attendanceQuery
 
         if (attendanceError) {
           console.error("Attendance fetch error:", attendanceError)
@@ -334,10 +358,14 @@ export default function LateSummaryReportPage() {
         console.log("Fetching staff late records...")
         
         // Step 1: Get all staff
-        const { data: staffData, error: staffError } = await supabase
+        let staffQuery = supabase
           .from("staff")
           .select("*")
           .eq("status", "active")
+        if (selectedYearId) {
+          staffQuery = staffQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: staffData, error: staffError } = await staffQuery
 
         if (staffError) {
           console.error("Staff fetch error:", staffError)
@@ -355,13 +383,17 @@ export default function LateSummaryReportPage() {
         console.log(`Found ${staffIds.length} staff members`)
 
         // Step 2: Get attendance records
-        const { data: attendanceData, error: attendanceError } = await supabase
+        let staffAttendanceQuery = supabase
           .from("staff_attendance")
           .select("*")
           .in("staff_id", staffIds)
           .gte("date", filters.startDate)
           .lte("date", filters.endDate)
           .eq("status", "late")
+        if (selectedYearId) {
+          staffAttendanceQuery = staffAttendanceQuery.eq("academic_year_id", selectedYearId)
+        }
+        const { data: attendanceData, error: attendanceError } = await staffAttendanceQuery
 
         if (attendanceError) {
           console.error("Staff attendance fetch error:", attendanceError)
@@ -413,7 +445,7 @@ export default function LateSummaryReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters])
+   }, [filters, selectedYearId])
 
   useEffect(() => {
     loadLateRecords()
@@ -654,7 +686,23 @@ export default function LateSummaryReportPage() {
         {showFilters && (
           <Card className="border-0 shadow-md bg-white dark:bg-slate-800">
             <CardContent className="pt-5 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">Academic Year</label>
+                  <Select value={selectedYearId || "all"} onValueChange={(v) => setSelectedYearId(v === "all" ? "" : v)}>
+                    <SelectTrigger className="w-full h-9 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-white">
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-slate-800">
+                      <SelectItem value="all" className="dark:text-white">All Years</SelectItem>
+                      {activeYears.filter(y => y.id).map(year => (
+                        <SelectItem key={year.id} value={year.id} className="dark:text-white">
+                          {year.year_name} {year.is_current ? "(Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 block">User Type</label>
                   <Select
