@@ -762,9 +762,15 @@ function ReceiveFeesContent() {
 
           const monthStr = formatMonthRange(monthAllocs.map((m) => m.month))
 
+          const isOneTime = !c.months || c.months.length === 0 || c.months.every((m: any) => !m.month);
+          const yearLabel = dynamicDue?.academic_year?.name || '';
+          const displayLabel = (isOneTime && yearLabel)
+            ? `${c.name} (${yearLabel})`
+            : (monthStr ? `${c.name} (${monthStr})` : c.name);
+
           receiptItems.push({
             category_id: c.id,
-            category_name: monthStr ? `${c.name} (${monthStr})` : c.name,
+            category_name: displayLabel,
             paying_amount: duePortion,
             is_advance: false,
           })
@@ -793,13 +799,19 @@ function ReceiveFeesContent() {
           )
           const carryForwardAmount = advancePortion - academicYearAdvanceTotal
 
+          const isOneTime = !c.months || c.months.length === 0 || c.months.every((m: any) => !m.month);
+          const yearLabel = dynamicDue?.academic_year?.name || '';
+          const advanceMonthStr = formatMonthRange(advanceMonths.map((m) => m.month));
+          const advanceDisplayLabel = (isOneTime && yearLabel)
+            ? `${c.name} — Advance (${yearLabel})`
+            : (advanceMonthStr
+              ? `${c.name} — Advance (${advanceMonthStr})`
+              : `${c.name} — Advance`);
+
           if (academicYearAdvanceTotal > 0.01) {
-            const advanceMonthStr = formatMonthRange(advanceMonths.map((m) => m.month))
             receiptItems.push({
               category_id: c.id,
-              category_name: advanceMonthStr
-                ? `${c.name} — Advance (${advanceMonthStr})`
-                : `${c.name} — Advance`,
+              category_name: advanceDisplayLabel,
               paying_amount: academicYearAdvanceTotal,
               is_advance: true,
             })
@@ -1006,14 +1018,26 @@ function ReceiveFeesContent() {
                 <td style="border: 1px solid #ccc; padding: 1mm;">Class</td>
                 <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.class_name}</td>
               </tr>
-              <tr>
-                <td style="border: 1px solid #ccc; padding: 1mm;">Name</td>
-                <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.name}</td>
-                <td style="border: 1px solid #ccc; padding: 1mm;">Roll / Sec</td>
-                <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.class_roll || "N/A"} (${r.student.section || "A"})</td>
-              </tr>
-            </tbody>
-          </table>
+               <tr>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">Name</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.name}</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">Roll / Sec</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.class_roll || "N/A"} (${r.student.section || "A"})</td>
+               </tr>
+               <tr>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">Academic Year</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm; font-weight: bold;">${r.academicYear || "N/A"}</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">Payment Method</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm; text-transform: capitalize;">${r.receipt.paymentMethod}</td>
+               </tr>
+               <tr>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">Guardian</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">${r.student.father_name || "N/A"}</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">&nbsp;</td>
+                 <td style="border: 1px solid #ccc; padding: 1mm;">&nbsp;</td>
+               </tr>
+             </tbody>
+           </table>
 
           <p style="font-weight: bold; margin: 1mm 0; font-size: 8.5pt;">Payment Breakdown</p>
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 2mm; font-size: 8pt;">
