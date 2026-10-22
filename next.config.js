@@ -1,33 +1,34 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
 
   experimental: {
-    // ✅ Server Actions body size limit — 3MB ছবির জন্য 5MB (overhead সহ)
+    // Server Actions body size limit — 5MB ছবির জন্য
     serverActions: {
       bodySizeLimit: "5mb",
     },
     optimizePackageImports: [
-      'lucide-react',
-      '@radix-ui/react-select',
-      '@radix-ui/react-dialog',
+      "lucide-react",
+      "@radix-ui/react-select",
+      "@radix-ui/react-dialog",
     ],
   },
 
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    removeConsole: process.env.NODE_ENV === "production",
   },
 
-  serverExternalPackages: ['jspdf', 'html2canvas-pro'],
+  serverExternalPackages: ["jspdf", "html2canvas-pro"],
 
-  // Supabase image config
+  // Supabase public storage images from multiple client projects
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'ouyekvjgtxmxhxpzdasn.supabase.co',
-        port: '',
-        pathname: '/storage/v1/object/**',
+        protocol: "https",
+        hostname: "**.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**",
       },
     ],
   },
@@ -35,60 +36,60 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: "/(.*)",
         headers: [
           {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
+            key: "X-Content-Type-Options",
+            value: "nosniff",
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
+            key: "X-Frame-Options",
+            value: "DENY",
           },
         ],
       },
       {
-        source: '/sw.js',
+        source: "/sw.js",
         headers: [
           {
-            key: 'Content-Type',
-            value: 'application/javascript; charset=utf-8',
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
           },
           {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
           },
         ],
       },
       {
-        source: '/manifest.json',
+        source: "/manifest.json",
         headers: [
           {
-            key: 'Content-Type',
-            value: 'application/json',
+            key: "Content-Type",
+            value: "application/json",
           },
         ],
       },
-    ]
+    ];
   },
 
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.alias = {
         ...config.resolve.alias,
-        html2canvas: 'html2canvas-pro',
-      }
+        html2canvas: "html2canvas-pro",
+      };
 
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
         path: false,
         crypto: false,
-      }
+      };
     }
 
-    return config
+    return config;
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
