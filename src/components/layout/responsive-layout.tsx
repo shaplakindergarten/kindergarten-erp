@@ -390,6 +390,7 @@ const navigation: NavItem[] = [
     icon: <Settings className="h-5 w-5" />,
     roles: ["admin"],
     children: [
+      { title: "School Setup", href: "/settings", icon: <Settings className="h-4 w-4" />, roles: ["admin"] },
       { title: "Year Closing", href: "/settings/year-closing", icon: <Calendar className="h-4 w-4" />, roles: ["admin"] },
     ],
   },
